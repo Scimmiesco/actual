@@ -11,6 +11,8 @@ export type ForecastDataPoint = {
 export type ForecastTransaction = {
   amount: number;
   payee: string | null;
+  /** Category selected by the same rule engine used when posting the schedule. */
+  category?: string | null;
   scheduleId: string;
   scheduleName: string;
 };

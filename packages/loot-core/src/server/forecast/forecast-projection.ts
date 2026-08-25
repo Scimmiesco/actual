@@ -12,6 +12,7 @@ import type { ForecastScheduleOccurrence } from './forecast-schedules';
 type ScheduleOccurrenceSummary = {
   amount: number;
   payee: string;
+  category: string | null;
   scheduleId: string;
   scheduleName: string;
 };
@@ -132,6 +133,7 @@ export function indexScheduleOccurrences(
       {
         amount: occurrence.amount,
         payee: occurrence.payee,
+        category: occurrence.transaction.category ?? null,
         scheduleId: occurrence.scheduleId,
         scheduleName: occurrence.scheduleName,
       },
@@ -204,6 +206,7 @@ function buildAccountForecastDataPoints(
       transactions: scheduleTxns.map(scheduleTxn => ({
         amount: scheduleTxn.amount,
         payee: scheduleTxn.payee,
+        category: scheduleTxn.category,
         scheduleId: scheduleTxn.scheduleId,
         scheduleName: scheduleTxn.scheduleName,
       })),

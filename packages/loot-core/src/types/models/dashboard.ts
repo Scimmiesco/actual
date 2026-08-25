@@ -298,7 +298,8 @@ type SpecializedWidget =
   | FormulaWidget
   | SankeyWidget
   | AgeOfMoneyWidget
-  | BalanceForecastWidget;
+  | BalanceForecastWidget
+  | ScheduledCashFlowWidget;
 export type DashboardWidgetEntity = SpecializedWidget | CustomReportWidget;
 export type NewDashboardWidgetEntity = Omit<
   DashboardWidgetEntity,
@@ -411,5 +412,19 @@ export type BalanceForecastWidget = AbstractWidget<
     timeFrame?: TimeFrame;
     granularity?: 'Daily' | 'Monthly';
     source?: ForecastSource;
+  } | null
+>;
+
+export type ScheduledCashFlowWidget = AbstractWidget<
+  'scheduled-cash-flow-card',
+  {
+    name?: string;
+    startDate?: string;
+    endDate?: string;
+    accounts?: string[];
+    conditions?: RuleConditionEntity[];
+    conditionsOp?: 'and' | 'or';
+    timeFrame?: TimeFrame;
+    granularity?: 'Daily' | 'Monthly';
   } | null
 >;

@@ -44,6 +44,7 @@ export function isWidgetType(
     'custom-report',
     'sankey-card',
     'balance-forecast-card',
+    'scheduled-cash-flow-card',
     'age-of-money-card',
     'monte-carlo-card',
   ].includes(type);

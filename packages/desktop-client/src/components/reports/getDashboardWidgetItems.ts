@@ -1,3 +1,4 @@
+import { SvgBadge } from '@actual-app/components/icons/v1';
 import { Menu } from '@actual-app/components/menu';
 import type { MenuItem } from '@actual-app/components/menu';
 
@@ -19,6 +20,7 @@ type GetDashboardWidgetItemsParams = {
 
 type DashboardWidgetMenuName =
   | 'balance-forecast-card'
+  | 'scheduled-cash-flow-card'
   | 'budget-analysis-card'
   | 'calendar-card'
   | 'cash-flow-card'
@@ -100,6 +102,13 @@ export function getDashboardWidgetItems({
       text: t('Balance forecast'),
     });
   }
+
+  items.splice(findItemIndex(items, 'markdown-card'), 0, {
+    name: 'scheduled-cash-flow-card',
+    text: t('Scheduled cash flow'),
+    icon: SvgBadge,
+    iconSize: 14,
+  });
 
   if (formulaMode) {
     items.splice(findItemIndex(items, 'custom-report'), 0, {

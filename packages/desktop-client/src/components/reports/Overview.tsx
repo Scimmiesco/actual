@@ -1,3 +1,22 @@
+// OVERVIEW — the dashboard grid container (the "Reports home" component)
+// ----------------------------------------------------------------------
+// `Overview` is the smart container that renders a whole dashboard page. It is
+// the Angular equivalent of a component that:
+//   1. Injects several data services (useDashboardPages, useDashboardPageWidgets,
+//      useReports, useAccounts) — like injected `@Inject()`-ed services.
+//   2. Reads its input (`dashboard`) from the route resolver (Overview.tsx is
+//      rendered by ReportsDashboardRouter with the resolved entity).
+//   3. Lays out child *widget* components in a responsive grid
+//      (react-grid-layout), mapping over `widgets` much like an Angular
+//      `*ngFor="let widget of widgets"` with a big `ngSwitch` on `widget.type`
+//      to pick the right card component — i.e. a component factory / registry.
+//   4. Performs mutations (add/update/delete/reset/import/export widgets) via
+//      React Query mutations imported from `#reports/mutations`, the Angular
+//      analogue of calling methods on an injected `DashboardWidgetService`.
+//
+// Each card receives `widgetId`, `isEditing`, `meta` (the widget's saved config)
+// and an `onMetaChange` callback — `meta` plays the role of Angular `@Input()`
+// bindings, while `onMetaChange` is the `@Output()` event emitter for saving.
 import { useCallback, useMemo, useState } from 'react';
 import { Dialog, DialogTrigger } from 'react-aria-components';
 import { ErrorBoundary } from 'react-error-boundary';
@@ -9,7 +28,10 @@ import { useLocation } from 'react-router';
 
 import { Button } from '@actual-app/components/button';
 import { useResponsive } from '@actual-app/components/hooks/useResponsive';
-import { SvgDotsHorizontalTriple } from '@actual-app/components/icons/v1';
+import {
+  SvgBadge,
+  SvgDotsHorizontalTriple,
+} from '@actual-app/components/icons/v1';
 import { Menu } from '@actual-app/components/menu';
 import { Popover } from '@actual-app/components/popover';
 import { theme } from '@actual-app/components/theme';
@@ -67,6 +89,7 @@ import { MissingReportCard } from './reports/MissingReportCard';
 import { MonteCarloCard } from './reports/monte-carlo/MonteCarloCard';
 import { NetWorthCard } from './reports/NetWorthCard';
 import { SankeyCard } from './reports/SankeyCard';
+import { ScheduledCashFlowCard } from './reports/ScheduledCashFlowCard';
 import { SpendingCard } from './reports/SpendingCard';
 import { SummaryCard } from './reports/SummaryCard';
 
@@ -277,6 +300,9 @@ export function Overview({ dashboard }: OverviewProps) {
       return;
     }
 
+    // Persist the new grid positions/sizes back to the DB through the mutation
+    // service. Like calling `widgetService.updatePositions(...)` after a drag
+    // ends in an Angular grid component.
     updateDashboardWidgetsMutation.mutate({
       widgets: newLayout.map(item => ({
         id: item.i,
@@ -614,6 +640,12 @@ export function Overview({ dashboard }: OverviewProps) {
                                   },
                                 ]
                               : []),
+                            {
+                              name: 'scheduled-cash-flow-card' as const,
+                              text: t('Scheduled cash flow'),
+                              icon: SvgBadge,
+                              iconSize: 14,
+                            },
                             ...(monteCarloReportEnabled
                               ? [
                                   {
@@ -782,6 +814,12 @@ export function Overview({ dashboard }: OverviewProps) {
                   currentBreakpoint === 'desktop' ? onLayoutChange : undefined
                 }
               >
+                {/* For each widget we look it up in widgetMap and then do an
+                    Angular-style `ngSwitch` on widget.type to pick which card
+                    component to render. `meta` => @Input(), onMetaChange =>
+                    @Output(). Every card is also wrapped in its own ErrorBoundary
+                    so one broken widget degrades to <MissingReportCard/> instead
+                    of taking down the whole dashboard. */}
                 {currentLayout.map(item => {
                   const widget = widgetMap.get(item.i);
 
@@ -861,6 +899,16 @@ export function Overview({ dashboard }: OverviewProps) {
                         ) : widget.type === 'balance-forecast-card' &&
                           balanceForecastReportEnabled ? (
                           <BalanceForecastCard
+                            widgetId={item.i}
+                            isEditing={isEditing}
+                            accounts={accounts}
+                            meta={widget.meta}
+                            onMetaChange={newMeta =>
+                              onMetaChange(item, newMeta)
+                            }
+                          />
+                        ) : widget.type === 'scheduled-cash-flow-card' ? (
+                          <ScheduledCashFlowCard
                             widgetId={item.i}
                             isEditing={isEditing}
                             accounts={accounts}
