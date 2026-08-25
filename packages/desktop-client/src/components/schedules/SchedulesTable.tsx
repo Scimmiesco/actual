@@ -331,7 +331,7 @@ function ScheduleRow({
           ? monthUtilFormat(schedule.next_date, dateFormat)
           : null}
       </Field>
-      <Field width={70} name="days" style={{ textAlign: 'right' }}>
+      <Field width={70} name="days" style={{ textAlign: 'center' }}>
         <ScheduleDaysCell date={schedule.next_date} />
       </Field>
       <Field width={120} name="status" style={{ alignItems: 'flex-start' }}>
@@ -580,7 +580,7 @@ export function SchedulesTable({
           sort={sort}
           sortKey="days"
           onSort={onSort}
-          style={{ textAlign: 'right' }}
+          style={{ textAlign: 'center' }}
         />
         <SortableHeader
           width={120}
