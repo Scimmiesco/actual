@@ -18,6 +18,7 @@ import { LoadingIndicator } from '#components/reports/LoadingIndicator';
 import { ReportCard } from '#components/reports/ReportCard';
 import { ReportCardName } from '#components/reports/ReportCardName';
 import { calculateTimeRange } from '#components/reports/reportRanges';
+import { ScheduledCashFlowAccountBreakdown } from '#components/reports/reports/ScheduledCashFlowAccountBreakdown';
 import { useAccounts } from '#hooks/useAccounts';
 import { useBalanceForecast } from '#hooks/useBalanceForecast';
 import { useCategories } from '#hooks/useCategories';
@@ -112,7 +113,12 @@ export function ScheduledCashFlowCard({
         {isPending && !forecastData ? (
           <LoadingIndicator />
         ) : (
-          <ScheduledCashFlowGraph data={chartData} compact />
+          <>
+            <ScheduledCashFlowGraph data={chartData} compact />
+            <ScheduledCashFlowAccountBreakdown
+              accounts={chartData.accountBreakdown}
+            />
+          </>
         )}
       </View>
     </ReportCard>

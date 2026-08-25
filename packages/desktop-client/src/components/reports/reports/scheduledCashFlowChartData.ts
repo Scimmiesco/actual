@@ -26,8 +26,16 @@ export type ScheduledCashFlowChartData = {
   points: ScheduledCashFlowChartPoint[];
   categories: Array<{ id: string; name: string }>;
   occurrences: ScheduledCashFlowOccurrence[];
+  accountBreakdown: ScheduledCashFlowAccountSummary[];
   totalIncome: number;
   totalExpenses: number;
+};
+
+export type ScheduledCashFlowAccountSummary = {
+  accountId: string;
+  accountName: string;
+  income: number;
+  expenses: number;
 };
 
 type BuildScheduledCashFlowChartDataParams = {
@@ -90,6 +98,7 @@ export function buildScheduledCashFlowChartData({
   >();
   let totalIncome = 0;
   let totalExpenses = 0;
+  const accountsById = new Map<string, ScheduledCashFlowAccountSummary>();
 
   for (const occurrence of occurrences) {
     const categoryId = occurrence.categoryId ?? 'uncategorized';
@@ -114,6 +123,19 @@ export function buildScheduledCashFlowChartData({
     } else {
       totalExpenses += occurrence.amount;
     }
+
+    const account = accountsById.get(occurrence.accountId) ?? {
+      accountId: occurrence.accountId,
+      accountName: occurrence.accountName,
+      income: 0,
+      expenses: 0,
+    };
+    if (occurrence.amount > 0) {
+      account.income += occurrence.amount;
+    } else {
+      account.expenses += occurrence.amount;
+    }
+    accountsById.set(occurrence.accountId, account);
   }
 
   const bucketKeys =
@@ -141,6 +163,9 @@ export function buildScheduledCashFlowChartData({
     points,
     categories: [...categoryById.entries()].map(([id, name]) => ({ id, name })),
     occurrences,
+    accountBreakdown: [...accountsById.values()].sort((a, b) =>
+      a.accountName.localeCompare(b.accountName),
+    ),
     totalIncome,
     totalExpenses,
   };

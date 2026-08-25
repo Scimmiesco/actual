@@ -71,6 +71,14 @@ describe('buildScheduledCashFlowChartData', () => {
     ]);
     expect(data.totalIncome).toBe(100);
     expect(data.totalExpenses).toBe(-25);
+    expect(data.accountBreakdown).toEqual([
+      {
+        accountId: 'checking',
+        accountName: 'Checking',
+        income: 100,
+        expenses: -25,
+      },
+    ]);
     expect(data.occurrences[0]).toMatchObject({
       accountName: 'Checking',
       categoryName: 'Food',
