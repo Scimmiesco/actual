@@ -119,6 +119,10 @@ function ScheduledCashFlowInner({ widget }: ScheduledCashFlowInnerProps) {
 
   const startDate = start;
   const endDate = end;
+  const forecastStartDate =
+    start.length === 7 ? monthUtils.firstDayOfMonth(start) : start;
+  const forecastEndDate =
+    end.length === 7 ? monthUtils.lastDayOfMonth(end) : end;
   const {
     data: forecastData,
     error,
@@ -127,8 +131,8 @@ function ScheduledCashFlowInner({ widget }: ScheduledCashFlowInnerProps) {
     accountIds: selectedAccountIds,
     conditions,
     conditionsOp,
-    startDate,
-    endDate,
+    startDate: forecastStartDate,
+    endDate: forecastEndDate,
     includeAccountlessSchedules: widget?.meta?.accounts === undefined,
   });
 
