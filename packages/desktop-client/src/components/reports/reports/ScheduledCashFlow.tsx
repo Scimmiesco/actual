@@ -235,6 +235,7 @@ function ScheduledCashFlowInner({ widget }: ScheduledCashFlowInnerProps) {
         mode={mode}
         onChangeDates={onChangeDates}
         granularities={['month', 'day']}
+        show1Month
         showFutureRange
         filters={conditions}
         onApply={onApplyFilter}
