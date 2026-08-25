@@ -157,7 +157,7 @@ function AccountGroup({
       >
         {title}
       </Block>
-      <View style={{ maxHeight: 100, overflowY: 'auto' }}>
+      <View>
         {accounts.length === 0 ? (
           <Block style={{ ...styles.smallText, color: theme.pageTextLight }}>
             {emptyLabel}

@@ -81,7 +81,6 @@ export function ScheduledCashFlowCard({
     <ReportCard
       widgetId={widgetId}
       isEditing={isEditing}
-      size={2}
       disableClick={nameMenuOpen}
       to={`/reports/scheduled-cash-flow/${widgetId}`}
       onRename={() => setNameMenuOpen(true)}

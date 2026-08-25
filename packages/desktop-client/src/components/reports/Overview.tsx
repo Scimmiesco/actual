@@ -112,6 +112,10 @@ function getWidgetMinHeight(widget: DashboardWidgetEntity) {
     return 3;
   }
 
+  if (widget.type === 'scheduled-cash-flow-card') {
+    return 3;
+  }
+
   return 2;
 }
 
@@ -198,14 +202,14 @@ export function Overview({ dashboard }: OverviewProps) {
     let currentY = 0;
     return sortedDesktopItems.map(widget => {
       const itemY = currentY;
-      currentY += widget.height;
+      currentY += Math.max(widget.height, getWidgetMinHeight(widget));
 
       return {
         i: widget.id,
         x: 0,
         y: itemY, // Calculate correct y co-ordinate to prevent react-grid-layout's auto-compacting behaviour
         w: 1,
-        h: widget.height,
+        h: Math.max(widget.height, getWidgetMinHeight(widget)),
       };
     });
   }, [widgets]);
@@ -217,7 +221,7 @@ export function Overview({ dashboard }: OverviewProps) {
       x: widget.x,
       y: widget.y,
       w: widget.width,
-      h: widget.height,
+      h: Math.max(widget.height, getWidgetMinHeight(widget)),
       minW: getWidgetMinWidth(widget),
       minH: getWidgetMinHeight(widget),
     }));
@@ -324,7 +328,8 @@ export function Overview({ dashboard }: OverviewProps) {
       widget: {
         type,
         width: 4,
-        height: type === 'sankey-card' ? 3 : 2,
+        height:
+          type === 'sankey-card' || type === 'scheduled-cash-flow-card' ? 3 : 2,
         meta,
         dashboard_page_id: dashboard.id,
       },
