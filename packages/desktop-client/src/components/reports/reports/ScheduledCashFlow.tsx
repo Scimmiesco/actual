@@ -20,7 +20,7 @@ import { FinancialText } from '#components/FinancialText';
 import { MobileBackButton } from '#components/mobile/MobileBackButton';
 import { MobilePageHeader, Page, PageHeader } from '#components/Page';
 import { AccountSelector } from '#components/reports/AccountSelector';
-import { ScheduledCashFlowGraph } from '#components/reports/graphs/ScheduledCashFlowGraph';
+import { ScheduledCashFlowSankeyGraph } from '#components/reports/graphs/ScheduledCashFlowSankeyGraph';
 import { Header } from '#components/reports/Header';
 import { LoadingIndicator } from '#components/reports/LoadingIndicator';
 import { calculateTimeRange } from '#components/reports/reportRanges';
@@ -308,7 +308,7 @@ function ScheduledCashFlowInner({ widget }: ScheduledCashFlowInnerProps) {
                 }
               />
             </View>
-            <ScheduledCashFlowGraph data={chartData} />
+            <ScheduledCashFlowSankeyGraph data={chartData} />
             <ScheduledCashFlowTable occurrences={chartData.occurrences} />
           </>
         )}
