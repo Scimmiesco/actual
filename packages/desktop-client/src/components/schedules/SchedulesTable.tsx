@@ -14,6 +14,7 @@ import { styles } from '@actual-app/components/styles';
 import { Text } from '@actual-app/components/text';
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
+import { send } from '@actual-app/core/platform/client/connection';
 import {
   currentDay as monthUtilCurrentDay,
   differenceInCalendarDays as monthUtilDifferenceInCalendarDays,
@@ -28,7 +29,9 @@ import { FinancialText } from '#components/FinancialText';
 import { PrivacyFilter } from '#components/PrivacyFilter';
 import { Cell, Field, Row, Table, TableHeader } from '#components/table';
 import { DisplayId } from '#components/util/DisplayId';
+import { GenericInput } from '#components/util/GenericInput';
 import { useAccounts } from '#hooks/useAccounts';
+import { useCategories } from '#hooks/useCategories';
 import { useContextMenu } from '#hooks/useContextMenu';
 import { useDateFormat } from '#hooks/useDateFormat';
 import { useFormat } from '#hooks/useFormat';
@@ -65,6 +68,7 @@ type SortKey =
   | 'name'
   | 'payee'
   | 'account'
+  | 'category'
   | 'date'
   | 'days'
   | 'status'
@@ -105,6 +109,13 @@ function ScheduleDaysCell({ date }: { date: string | null }) {
     );
   }
   return <Trans count={days}>{{ count: days }} days</Trans>;
+}
+
+function getScheduleCategory(schedule: ScheduleEntity) {
+  const action = schedule._actions?.find(
+    action => action.op === 'set' && action.field === 'category',
+  );
+  return action?.value ? String(action.value) : '';
 }
 
 function SortableHeader({
@@ -241,13 +252,19 @@ function ScheduleRow({
   minimal,
   statuses,
   dateFormat,
+  onCategoryChange,
 }: {
   schedule: ScheduleEntity;
   dateFormat: string;
 } & Pick<
   SchedulesTableProps,
   'onSelect' | 'onAction' | 'minimal' | 'statuses'
->) {
+> & {
+    onCategoryChange: (
+      schedule: ScheduleEntity,
+      categoryId: string | null,
+    ) => Promise<void>;
+  }) {
   const { t } = useTranslation();
 
   const rowRef = useRef(null);
@@ -326,6 +343,27 @@ function ScheduleRow({
       <Field width="flex" name="account">
         <DisplayId type="accounts" id={schedule._account} />
       </Field>
+      <Field
+        width="flex"
+        name="category"
+        truncate={false}
+        onClick={event => event.stopPropagation()}
+      >
+        <GenericInput
+          type="id"
+          field="category"
+          value={getScheduleCategory(schedule)}
+          onChange={category =>
+            void onCategoryChange(schedule, category || null)
+          }
+          inputStyle={{
+            border: 'none',
+            backgroundColor: 'transparent',
+            padding: '0 5px',
+            width: '100%',
+          }}
+        />
+      </Field>
       <Field width={110} name="date">
         {schedule.next_date
           ? monthUtilFormat(schedule.next_date, dateFormat)
@@ -403,6 +441,7 @@ export function SchedulesTable({
 
   const { data: payees } = usePayees();
   const { data: accounts = [] } = useAccounts();
+  const { data: { list: categories = [] } = {} } = useCategories();
 
   const filteredSchedules = useMemo(() => {
     const filterIncludes = (str: string) =>
@@ -415,6 +454,9 @@ export function SchedulesTable({
       ? schedules.filter(schedule => {
           const payee = payees.find(p => schedule._payee === p.id);
           const account = accounts.find(a => schedule._account === a.id);
+          const category = categories.find(
+            c => c.id === getScheduleCategory(schedule),
+          );
           const amount = getScheduledAmount(schedule._amount);
           let amountStr = '';
           if (schedule._amountOp === 'isbetween') {
@@ -433,6 +475,7 @@ export function SchedulesTable({
             filterIncludes(schedule.name) ||
             filterIncludes(payee && payee.name) ||
             filterIncludes(account && account.name) ||
+            filterIncludes(category && category.name) ||
             filterIncludes(amountStr) ||
             filterIncludes(statuses.get(schedule.id)) ||
             filterIncludes(dateStr)
@@ -448,6 +491,9 @@ export function SchedulesTable({
     const accountNames = new Map(
       accounts.map(account => [account.id, account.name]),
     );
+    const categoryNames = new Map(
+      categories.map(category => [category.id, category.name]),
+    );
 
     function getValue(schedule: ScheduleEntity) {
       switch (sort.key) {
@@ -457,6 +503,10 @@ export function SchedulesTable({
           return getNormalisedString(payeeNames.get(schedule._payee) ?? '');
         case 'account':
           return getNormalisedString(accountNames.get(schedule._account) ?? '');
+        case 'category':
+          return getNormalisedString(
+            categoryNames.get(getScheduleCategory(schedule)) ?? '',
+          );
         case 'date':
           return schedule.next_date ?? '';
         case 'days':
@@ -479,7 +529,40 @@ export function SchedulesTable({
           : String(aValue).localeCompare(String(bValue));
       return sort.direction === 'asc' ? comparison : -comparison;
     });
-  }, [payees, accounts, schedules, filter, statuses, format, dateFormat, sort]);
+  }, [
+    payees,
+    accounts,
+    categories,
+    schedules,
+    filter,
+    statuses,
+    format,
+    dateFormat,
+    sort,
+  ]);
+
+  async function onCategoryChange(
+    schedule: ScheduleEntity,
+    categoryId: string | null,
+  ) {
+    if (!schedule.rule) {
+      return;
+    }
+
+    const rule = await send('rule-get', { id: schedule.rule });
+    if (!rule) {
+      return;
+    }
+
+    const actions = rule.actions.filter(
+      action => !(action.op === 'set' && action.field === 'category'),
+    );
+    if (categoryId) {
+      actions.push({ op: 'set', field: 'category', value: categoryId });
+    }
+
+    await send('rule-update', { ...rule, actions });
+  }
 
   function onSort(key: SortKey) {
     setSort(current =>
@@ -539,6 +622,7 @@ export function SchedulesTable({
       <ScheduleRow
         schedule={item as ScheduleEntity}
         {...{ statuses, dateFormat, onSelect, onAction, minimal }}
+        onCategoryChange={onCategoryChange}
       />
     );
   }
@@ -565,6 +649,13 @@ export function SchedulesTable({
           label={<Trans>Account</Trans>}
           sort={sort}
           sortKey="account"
+          onSort={onSort}
+        />
+        <SortableHeader
+          width="flex"
+          label={<Trans>Category</Trans>}
+          sort={sort}
+          sortKey="category"
           onSort={onSort}
         />
         <SortableHeader
