@@ -1,10 +1,14 @@
 // @ts-strict-ignore
-import React, { useMemo, useRef, useState } from 'react';
-import type { CSSProperties } from 'react';
+import { useMemo, useRef, useState } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 
 import { Button } from '@actual-app/components/button';
-import { SvgDotsHorizontalTriple } from '@actual-app/components/icons/v1';
+import {
+  SvgArrowDown,
+  SvgArrowUp,
+  SvgDotsHorizontalTriple,
+} from '@actual-app/components/icons/v1';
 import { SvgCheck } from '@actual-app/components/icons/v2';
 import { styles } from '@actual-app/components/styles';
 import { Text } from '@actual-app/components/text';
@@ -53,6 +57,10 @@ type SchedulesTableProps = {
 type CompletedScheduleItem = { id: 'show-completed' };
 type SchedulesTableItem = ScheduleEntity | CompletedScheduleItem;
 
+type SortKey = 'name' | 'payee' | 'account' | 'date' | 'status' | 'amount';
+type SortDirection = 'asc' | 'desc';
+type SortState = { key: SortKey; direction: SortDirection };
+
 export type ScheduleItemAction =
   | 'post-transaction'
   | 'post-transaction-today'
@@ -62,6 +70,50 @@ export type ScheduleItemAction =
   | 'delete';
 
 export const ROW_HEIGHT = 43;
+
+function SortableHeader({
+  label,
+  width,
+  sort,
+  sortKey,
+  onSort,
+  style,
+}: {
+  label: ReactNode;
+  width: CSSProperties['width'];
+  sort: SortState | null;
+  sortKey: SortKey;
+  onSort: (key: SortKey) => void;
+  style?: CSSProperties;
+}) {
+  const isSorted = sort?.key === sortKey;
+
+  return (
+    <Field
+      width={width}
+      truncate={false}
+      onClick={() => onSort(sortKey)}
+      aria-sort={
+        isSorted
+          ? sort.direction === 'asc'
+            ? 'ascending'
+            : 'descending'
+          : 'none'
+      }
+      style={{ cursor: 'pointer', ...style }}
+    >
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+        {label}
+        {isSorted &&
+          (sort.direction === 'asc' ? (
+            <SvgArrowUp width={10} height={10} />
+          ) : (
+            <SvgArrowDown width={10} height={10} />
+          ))}
+      </View>
+    </Field>
+  );
+}
 
 export function ScheduleAmountCell({
   amount,
@@ -308,46 +360,96 @@ export function SchedulesTable({
 
   const dateFormat = useDateFormat() || 'MM/dd/yyyy';
   const [showCompleted, setShowCompleted] = useState(false);
+  const [sort, setSort] = useState<SortState | null>(null);
 
   const { data: payees } = usePayees();
   const { data: accounts = [] } = useAccounts();
 
   const filteredSchedules = useMemo(() => {
-    if (!filter) {
-      return schedules;
-    }
     const filterIncludes = (str: string) =>
       str
         ? getNormalisedString(str).includes(getNormalisedString(filter)) ||
           getNormalisedString(filter).includes(getNormalisedString(str))
         : false;
 
-    return schedules.filter(schedule => {
-      const payee = payees.find(p => schedule._payee === p.id);
-      const account = accounts.find(a => schedule._account === a.id);
-      const amount = getScheduledAmount(schedule._amount);
-      let amountStr = '';
-      if (schedule._amountOp === 'isbetween') {
-        amountStr = '±';
-      } else if (schedule._amountOp === 'isapprox') {
-        amountStr = '~';
-      }
-      amountStr +=
-        (amount > 0 ? '+' : '') + format(Math.abs(amount || 0), 'financial');
-      const dateStr = schedule.next_date
-        ? monthUtilFormat(schedule.next_date, dateFormat)
-        : null;
+    const matchingSchedules = filter
+      ? schedules.filter(schedule => {
+          const payee = payees.find(p => schedule._payee === p.id);
+          const account = accounts.find(a => schedule._account === a.id);
+          const amount = getScheduledAmount(schedule._amount);
+          let amountStr = '';
+          if (schedule._amountOp === 'isbetween') {
+            amountStr = '±';
+          } else if (schedule._amountOp === 'isapprox') {
+            amountStr = '~';
+          }
+          amountStr +=
+            (amount > 0 ? '+' : '') +
+            format(Math.abs(amount || 0), 'financial');
+          const dateStr = schedule.next_date
+            ? monthUtilFormat(schedule.next_date, dateFormat)
+            : null;
 
-      return (
-        filterIncludes(schedule.name) ||
-        filterIncludes(payee && payee.name) ||
-        filterIncludes(account && account.name) ||
-        filterIncludes(amountStr) ||
-        filterIncludes(statuses.get(schedule.id)) ||
-        filterIncludes(dateStr)
-      );
+          return (
+            filterIncludes(schedule.name) ||
+            filterIncludes(payee && payee.name) ||
+            filterIncludes(account && account.name) ||
+            filterIncludes(amountStr) ||
+            filterIncludes(statuses.get(schedule.id)) ||
+            filterIncludes(dateStr)
+          );
+        })
+      : schedules;
+
+    if (!sort) {
+      return matchingSchedules;
+    }
+
+    const payeeNames = new Map(payees.map(payee => [payee.id, payee.name]));
+    const accountNames = new Map(
+      accounts.map(account => [account.id, account.name]),
+    );
+
+    function getValue(schedule: ScheduleEntity) {
+      switch (sort.key) {
+        case 'name':
+          return getNormalisedString(schedule.name ?? '');
+        case 'payee':
+          return getNormalisedString(payeeNames.get(schedule._payee) ?? '');
+        case 'account':
+          return getNormalisedString(accountNames.get(schedule._account) ?? '');
+        case 'date':
+          return schedule.next_date ?? '';
+        case 'status':
+          return statuses.get(schedule.id) ?? '';
+        case 'amount':
+          return getScheduledAmount(schedule._amount);
+        default:
+          return '';
+      }
+    }
+
+    return [...matchingSchedules].sort((a, b) => {
+      const aValue = getValue(a);
+      const bValue = getValue(b);
+      const comparison =
+        typeof aValue === 'number' && typeof bValue === 'number'
+          ? aValue - bValue
+          : String(aValue).localeCompare(String(bValue));
+      return sort.direction === 'asc' ? comparison : -comparison;
     });
-  }, [payees, accounts, schedules, filter, statuses, format, dateFormat]);
+  }, [payees, accounts, schedules, filter, statuses, format, dateFormat, sort]);
+
+  function onSort(key: SortKey) {
+    setSort(current =>
+      current?.key === key
+        ? {
+            key,
+            direction: current.direction === 'asc' ? 'desc' : 'asc',
+          }
+        : { key, direction: 'asc' },
+    );
+  }
 
   const items: readonly SchedulesTableItem[] = useMemo(() => {
     const unCompletedSchedules = filteredSchedules.filter(s => !s.completed);
@@ -403,24 +505,49 @@ export function SchedulesTable({
   return (
     <View style={{ ...styles.tableContainer, ...tableStyle }}>
       <TableHeader height={ROW_HEIGHT} inset={15}>
-        <Field width="flex">
-          <Trans>Name</Trans>
-        </Field>
-        <Field width="flex">
-          <Trans>Payee</Trans>
-        </Field>
-        <Field width="flex">
-          <Trans>Account</Trans>
-        </Field>
-        <Field width={110}>
-          <Trans>Next date</Trans>
-        </Field>
-        <Field width={120}>
-          <Trans>Status</Trans>
-        </Field>
-        <Field width={100} style={{ textAlign: 'right' }}>
-          <Trans>Amount</Trans>
-        </Field>
+        <SortableHeader
+          width="flex"
+          label={<Trans>Name</Trans>}
+          sort={sort}
+          sortKey="name"
+          onSort={onSort}
+        />
+        <SortableHeader
+          width="flex"
+          label={<Trans>Payee</Trans>}
+          sort={sort}
+          sortKey="payee"
+          onSort={onSort}
+        />
+        <SortableHeader
+          width="flex"
+          label={<Trans>Account</Trans>}
+          sort={sort}
+          sortKey="account"
+          onSort={onSort}
+        />
+        <SortableHeader
+          width={110}
+          label={<Trans>Next date</Trans>}
+          sort={sort}
+          sortKey="date"
+          onSort={onSort}
+        />
+        <SortableHeader
+          width={120}
+          label={<Trans>Status</Trans>}
+          sort={sort}
+          sortKey="status"
+          onSort={onSort}
+        />
+        <SortableHeader
+          width={100}
+          label={<Trans>Amount</Trans>}
+          sort={sort}
+          sortKey="amount"
+          onSort={onSort}
+          style={{ textAlign: 'right' }}
+        />
         {!minimal && (
           <Field width={80} style={{ textAlign: 'center' }}>
             <Trans>Recurring</Trans>
