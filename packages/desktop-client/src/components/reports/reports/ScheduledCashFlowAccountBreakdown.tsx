@@ -40,6 +40,7 @@ export function ScheduledCashFlowAccountBreakdown({
         flexDirection: 'column',
         gap: 16,
         margin: '0 20px 16px',
+        overflowX: 'auto',
         position: 'relative',
       }}
     >
@@ -102,7 +103,7 @@ export function ScheduledCashFlowAccountBreakdown({
           }
         />
       </View>
-      <View style={{ flexDirection: 'row', gap: 16 }}>
+      <View style={{ flexDirection: 'row', gap: 16, minWidth: 360 }}>
         <AccountGroup
           accounts={incomeAccounts}
           color={theme.numberPositive}
@@ -144,13 +145,14 @@ function AccountGroup({
   const total = accounts.reduce((sum, account) => sum + value(account), 0);
 
   return (
-    <View style={{ flex: 1, minWidth: 0 }}>
+    <View style={{ flex: 1, minWidth: 172 }}>
       <Block
         style={{
           ...styles.smallText,
           color,
           fontWeight: 600,
           marginBottom: 6,
+          whiteSpace: 'nowrap',
         }}
       >
         {title}
@@ -177,7 +179,7 @@ function AccountGroup({
                 </Block>
               }
               right={
-                <FinancialText style={{ color }}>
+                <FinancialText style={{ color, whiteSpace: 'nowrap' }}>
                   {format(value(account), 'financial')}
                 </FinancialText>
               }
@@ -194,7 +196,9 @@ function AccountGroup({
             </Block>
           }
           right={
-            <FinancialText style={{ color, fontWeight: 600 }}>
+            <FinancialText
+              style={{ color, fontWeight: 600, whiteSpace: 'nowrap' }}
+            >
               {format(total, 'financial')}
             </FinancialText>
           }
