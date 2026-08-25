@@ -1,3 +1,24 @@
+// NET WORTH REPORT PAGE
+// ---------------------
+// A concrete end-to-end example of how a single report works. The data flow is:
+//
+//   URL (:id) ──▶ useDashboardWidget() ──▶ widget (saved config / meta)
+//        │
+//        └─ widget.meta (dates, interval, filters, graph mode) drives the inputs
+//               │
+//               ▼
+//   netWorthSpreadsheet(...)  ── builds an async "query plan" (the data layer)
+//               │
+//               ▼
+//   useReport('net_worth', reportParams)  ── runs it & returns `data | null`
+//               │                              (the Angular "subscribe to service" step)
+//               ▼
+//   <NetWorthGraph graphData={data.graphData} .../>  ── pure presentational view
+//
+// Compare to Angular: `NetWorth` is a routed component; `useDashboardWidget` is
+// like resolving the entity from the route; the spreadsheet is a service method;
+// `useReport` is the subscription; `NetWorthGraph` is a dumb child component that
+// only renders what it is given (like a component with pure `@Input()`s).
 import React, {
   useCallback,
   useEffect,
@@ -124,6 +145,11 @@ function NetWorthInner({ widget }: NetWorthInnerProps) {
   const [_firstDayOfWeekIdx] = useSyncedPref('firstDayOfWeekIdx');
   const firstDayOfWeekIdx = _firstDayOfWeekIdx || '0';
 
+  // Build the "query plan" from the current UI state. `netWorthSpreadsheet(...)`
+  // returns an async function (NOT data yet) — it is memoized on every input so
+  // it is recreated only when the user changes a date/interval/filter. This is
+  // the Angular equivalent of constructing the parameters object you'd hand to
+  // a service call, e.g. `this.netWorthService.query({ start, end, ... })`.
   const reportParams = useMemo(
     () =>
       netWorthSpreadsheet(
@@ -149,6 +175,10 @@ function NetWorthInner({ widget }: NetWorthInnerProps) {
       format,
     ],
   );
+  // Execute the plan and subscribe to the result. `data` is `null` while loading
+  // (see useReport.ts); the component returns null below until both the month
+  // list and `data` are ready, mirroring an Angular template's `*ngIf="data$ |
+  // async as data"` guard.
   const data = useReport('net_worth', reportParams);
   useEffect(() => {
     async function run() {

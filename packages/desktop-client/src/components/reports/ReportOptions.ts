@@ -1,3 +1,13 @@
+// REPORT OPTIONS — shared configuration / lookup tables
+// ------------------------------------------------------
+// This module is the reports feature's central "constants + lookups" file. In
+// Angular terms it is the equivalent of an `InjectionToken`/`const` providing
+// the available enum-like option sets (balance type, group-by dimension, sort
+// order, date ranges, intervals). The `*Map` / `Set` exports are pre-built
+// lookup indexes (key -> value) so the rest of the code can do O(1) translation
+// between a human-readable `key` (e.g. "Monthly") and the internal format/name
+// the spreadsheet layer needs — analogous to a static `Map` injected as a
+// service and consumed by components/pipes.
 import * as monthUtils from '@actual-app/core/shared/months';
 import type {
   CategoryEntity,
@@ -10,6 +20,10 @@ import { t } from 'i18next';
 const startDate = monthUtils.subMonths(monthUtils.currentMonth(), 5) + '-01';
 const endDate = monthUtils.currentDay();
 
+// The default configuration for a brand-new custom report. Acts like an Angular
+// `@Input()` default / initial form model: every field a report page or the
+// custom-report builder can tweak is seeded here (date range, grouping, sort,
+// graph type, filters, etc.).
 export const defaultReport: CustomReportEntity = {
   id: '',
   name: '',
@@ -272,6 +286,12 @@ const intervalOptions: intervalOptionsProps[] = [
   },
 ];
 
+// Assembled lookup object exported to the rest of the feature. Each `xxxMap`
+// /`xxxItems` is a memoization-friendly index over the option arrays above, so
+// callers can do e.g. `ReportOptions.intervalFormat.get('Monthly')` instead of
+// re-scanning the array. Think of this as a single injected "ReportConfig"
+// service exposing both the raw option lists (for building <select>/menus) and
+// the resolved maps (for translating selections into compute formats).
 export const ReportOptions = {
   groupBy: groupByOptions,
   groupByItems: new Set(groupByOptions.map(item => item.key)),
