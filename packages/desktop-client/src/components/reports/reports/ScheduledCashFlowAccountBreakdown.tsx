@@ -22,32 +22,104 @@ export function ScheduledCashFlowAccountBreakdown({
   const format = useFormat();
   const incomeAccounts = accounts.filter(account => account.income > 0);
   const expenseAccounts = accounts.filter(account => account.expenses < 0);
+  const totalIncome = incomeAccounts.reduce(
+    (sum, account) => sum + account.income,
+    0,
+  );
+  const totalExpenses = expenseAccounts.reduce(
+    (sum, account) => sum + Math.abs(account.expenses),
+    0,
+  );
+  const total = totalIncome + totalExpenses;
+  const net = totalIncome - totalExpenses;
 
   return (
     <View
       style={{
         display: 'flex',
-        flexDirection: 'row',
+        flexDirection: 'column',
         gap: 16,
         margin: '0 20px 16px',
+        position: 'relative',
       }}
     >
-      <AccountGroup
-        accounts={incomeAccounts}
-        color={theme.numberPositive}
-        format={format}
-        title={<Trans>Income accounts</Trans>}
-        value={account => account.income}
-        emptyLabel={<Trans>No income scheduled</Trans>}
-      />
-      <AccountGroup
-        accounts={expenseAccounts}
-        color={theme.numberNegative}
-        format={format}
-        title={<Trans>Expense accounts</Trans>}
-        value={account => Math.abs(account.expenses)}
-        emptyLabel={<Trans>No expenses scheduled</Trans>}
-      />
+      <View style={{ position: 'absolute', left: 20, right: 20 }}>
+        <View
+          style={{
+            flexDirection: 'row',
+            height: 6,
+            borderRadius: 3,
+            overflow: 'hidden',
+            backgroundColor: theme.tableBorder,
+          }}
+        >
+          {total > 0 && (
+            <View
+              style={{
+                width: `${(totalIncome / total) * 100}%`,
+                backgroundColor: theme.numberPositive,
+              }}
+            />
+          )}
+          {total > 0 && (
+            <View
+              style={{
+                width: `${(totalExpenses / total) * 100}%`,
+                backgroundColor: theme.numberNegative,
+              }}
+            />
+          )}
+        </View>
+      </View>
+      <View style={{ width: '100%', marginTop: 10, marginBottom: 12 }}>
+        <AlignedText
+          left={<Trans>Incoming</Trans>}
+          right={
+            <FinancialText style={{ color: theme.numberPositive }}>
+              {format(totalIncome, 'financial')}
+            </FinancialText>
+          }
+        />
+        <AlignedText
+          left={<Trans>Outgoing</Trans>}
+          right={
+            <FinancialText style={{ color: theme.numberNegative }}>
+              {format(totalExpenses, 'financial')}
+            </FinancialText>
+          }
+        />
+        <AlignedText
+          left={<Trans>Net change</Trans>}
+          right={
+            <FinancialText
+              style={{
+                color: net >= 0 ? theme.numberPositive : theme.numberNegative,
+                fontWeight: 600,
+              }}
+            >
+              {format(net, 'financial')}
+            </FinancialText>
+          }
+        />
+      </View>
+      <View style={{ flexDirection: 'row', gap: 16 }}>
+        <AccountGroup
+          accounts={incomeAccounts}
+          color={theme.numberPositive}
+          format={format}
+          title={<Trans>Income accounts</Trans>}
+          value={account => account.income}
+          emptyLabel={<Trans>No income scheduled</Trans>}
+        />
+        <AccountGroup
+          accounts={expenseAccounts}
+          color={theme.numberNegative}
+          format={format}
+          title={<Trans>Expense accounts</Trans>}
+          value={account => Math.abs(account.expenses)}
+          emptyLabel={<Trans>No expenses scheduled</Trans>}
+        />
+      </View>
     </View>
   );
 }
