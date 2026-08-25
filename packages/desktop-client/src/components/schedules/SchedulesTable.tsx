@@ -14,7 +14,11 @@ import { styles } from '@actual-app/components/styles';
 import { Text } from '@actual-app/components/text';
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
-import { format as monthUtilFormat } from '@actual-app/core/shared/months';
+import {
+  currentDay as monthUtilCurrentDay,
+  differenceInCalendarDays as monthUtilDifferenceInCalendarDays,
+  format as monthUtilFormat,
+} from '@actual-app/core/shared/months';
 import { getNormalisedString } from '@actual-app/core/shared/normalisation';
 import { getScheduledAmount } from '@actual-app/core/shared/schedules';
 import type { ScheduleStatuses } from '@actual-app/core/shared/schedules';
@@ -57,7 +61,14 @@ type SchedulesTableProps = {
 type CompletedScheduleItem = { id: 'show-completed' };
 type SchedulesTableItem = ScheduleEntity | CompletedScheduleItem;
 
-type SortKey = 'name' | 'payee' | 'account' | 'date' | 'status' | 'amount';
+type SortKey =
+  | 'name'
+  | 'payee'
+  | 'account'
+  | 'date'
+  | 'days'
+  | 'status'
+  | 'amount';
 type SortDirection = 'asc' | 'desc';
 type SortState = { key: SortKey; direction: SortDirection };
 
@@ -70,6 +81,31 @@ export type ScheduleItemAction =
   | 'delete';
 
 export const ROW_HEIGHT = 43;
+
+function getDaysUntil(date: string | null) {
+  return date == null
+    ? null
+    : monthUtilDifferenceInCalendarDays(date, monthUtilCurrentDay());
+}
+
+function ScheduleDaysCell({ date }: { date: string | null }) {
+  const days = getDaysUntil(date);
+
+  if (days == null) {
+    return null;
+  }
+  if (days === 0) {
+    return <Trans>Today</Trans>;
+  }
+  if (days < 0) {
+    return (
+      <Trans count={Math.abs(days)}>
+        {{ count: Math.abs(days) }} days overdue
+      </Trans>
+    );
+  }
+  return <Trans count={days}>{{ count: days }} days</Trans>;
+}
 
 function SortableHeader({
   label,
@@ -295,6 +331,9 @@ function ScheduleRow({
           ? monthUtilFormat(schedule.next_date, dateFormat)
           : null}
       </Field>
+      <Field width={70} name="days" style={{ textAlign: 'right' }}>
+        <ScheduleDaysCell date={schedule.next_date} />
+      </Field>
       <Field width={120} name="status" style={{ alignItems: 'flex-start' }}>
         <StatusBadge status={statuses.get(schedule.id)} />
       </Field>
@@ -420,6 +459,8 @@ export function SchedulesTable({
           return getNormalisedString(accountNames.get(schedule._account) ?? '');
         case 'date':
           return schedule.next_date ?? '';
+        case 'days':
+          return getDaysUntil(schedule.next_date) ?? Number.MAX_SAFE_INTEGER;
         case 'status':
           return statuses.get(schedule.id) ?? '';
         case 'amount':
@@ -532,6 +573,14 @@ export function SchedulesTable({
           sort={sort}
           sortKey="date"
           onSort={onSort}
+        />
+        <SortableHeader
+          width={70}
+          label={<Trans>Days</Trans>}
+          sort={sort}
+          sortKey="days"
+          onSort={onSort}
+          style={{ textAlign: 'right' }}
         />
         <SortableHeader
           width={120}
