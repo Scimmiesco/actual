@@ -313,7 +313,7 @@ function ScheduledCashFlowInner({ widget }: ScheduledCashFlowInnerProps) {
               variant={showCategoryGroups ? 'primary' : 'normal'}
               onPress={() => setShowCategoryGroups(value => !value)}
             >
-              <Trans>Show category groups</Trans>
+              <Trans>Group categories</Trans>
             </Button>
           </>
         }

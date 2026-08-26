@@ -107,12 +107,14 @@ function buildScheduledCashFlowSankeyData(
         }
         return groups;
       }, []),
-    ...data.categories
-      .filter(category => visibleCategories.has(category.id))
-      .map(category => ({
-        key: `category:${category.id}`,
-        name: category.name,
-      })),
+    ...(!options.showCategoryGroups
+      ? data.categories
+          .filter(category => visibleCategories.has(category.id))
+          .map(category => ({
+            key: `category:${category.id}`,
+            name: category.name,
+          }))
+      : []),
     ...(visibleCategories.has('uncategorized') &&
     !data.categories.some(category => category.id === 'uncategorized')
       ? [{ key: 'category:uncategorized', name: labels.uncategorized }]
@@ -149,11 +151,11 @@ function buildScheduledCashFlowSankeyData(
         ) {
           const groupKey = `group:${category.groupId}`;
           addLink(accountKey, groupKey, Math.abs(occurrence.amount));
-          addLink(groupKey, categoryKey, Math.abs(occurrence.amount));
+          addLink(groupKey, 'expenses', Math.abs(occurrence.amount));
         } else {
           addLink(accountKey, categoryKey, Math.abs(occurrence.amount));
+          addLink(categoryKey, 'expenses', Math.abs(occurrence.amount));
         }
-        addLink(categoryKey, 'expenses', Math.abs(occurrence.amount));
       }
     }
   }
