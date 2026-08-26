@@ -68,6 +68,7 @@ export function ScheduledCashFlowCard({
     granularity: 'Monthly',
     accounts: loadedAccounts,
     categories: categories.list,
+    categoryGroups: categories.grouped,
     uncategorizedLabel: t('Uncategorized'),
   });
   const name = meta?.name ?? t('Scheduled Cash Flow');

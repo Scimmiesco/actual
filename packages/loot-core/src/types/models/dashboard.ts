@@ -430,5 +430,6 @@ export type ScheduledCashFlowWidget = AbstractWidget<
     categorySort?: 'amount' | 'name';
     showPercentages?: boolean;
     groupAccounts?: boolean;
+    showCategoryGroups?: boolean;
   } | null
 >;

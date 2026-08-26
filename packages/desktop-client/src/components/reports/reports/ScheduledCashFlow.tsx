@@ -89,6 +89,9 @@ function ScheduledCashFlowInner({ widget }: ScheduledCashFlowInnerProps) {
   const [groupAccounts, setGroupAccounts] = useState(
     widget?.meta?.groupAccounts ?? false,
   );
+  const [showCategoryGroups, setShowCategoryGroups] = useState(
+    widget?.meta?.showCategoryGroups ?? false,
+  );
   const [selectedAccountIds, setSelectedAccountIds] = useState<string[]>(
     widget?.meta?.accounts ?? [],
   );
@@ -155,6 +158,7 @@ function ScheduledCashFlowInner({ widget }: ScheduledCashFlowInnerProps) {
     granularity,
     accounts,
     categories: categories.list,
+    categoryGroups: categories.grouped,
     uncategorizedLabel: t('Uncategorized'),
   });
 
@@ -197,6 +201,7 @@ function ScheduledCashFlowInner({ widget }: ScheduledCashFlowInnerProps) {
             categorySort,
             showPercentages,
             groupAccounts,
+            showCategoryGroups,
             timeFrame: { start, end, mode },
           },
         },
@@ -304,6 +309,12 @@ function ScheduledCashFlowInner({ widget }: ScheduledCashFlowInnerProps) {
             >
               <Trans>Group accounts</Trans>
             </Button>
+            <Button
+              variant={showCategoryGroups ? 'primary' : 'normal'}
+              onPress={() => setShowCategoryGroups(value => !value)}
+            >
+              <Trans>Show category groups</Trans>
+            </Button>
           </>
         }
       >
@@ -363,6 +374,7 @@ function ScheduledCashFlowInner({ widget }: ScheduledCashFlowInnerProps) {
               categorySort={categorySort}
               showPercentages={showPercentages}
               groupAccounts={groupAccounts}
+              showCategoryGroups={showCategoryGroups}
             />
             <ScheduledCashFlowTable occurrences={chartData.occurrences} />
           </>

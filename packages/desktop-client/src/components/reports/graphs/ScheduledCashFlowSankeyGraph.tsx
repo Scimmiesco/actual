@@ -11,6 +11,7 @@ type ScheduledCashFlowSankeyGraphProps = {
   categorySort: 'amount' | 'name';
   showPercentages: boolean;
   groupAccounts: boolean;
+  showCategoryGroups: boolean;
 };
 
 export function ScheduledCashFlowSankeyGraph({
@@ -19,6 +20,7 @@ export function ScheduledCashFlowSankeyGraph({
   categorySort,
   showPercentages,
   groupAccounts,
+  showCategoryGroups,
 }: ScheduledCashFlowSankeyGraphProps) {
   const { t } = useTranslation();
   const sankeyData = buildScheduledCashFlowSankeyData(
@@ -29,7 +31,7 @@ export function ScheduledCashFlowSankeyGraph({
       accounts: t('Accounts'),
       uncategorized: t('Uncategorized'),
     },
-    { topNcategories, categorySort, groupAccounts },
+    { topNcategories, categorySort, groupAccounts, showCategoryGroups },
   );
 
   return (
@@ -53,6 +55,7 @@ function buildScheduledCashFlowSankeyData(
     topNcategories: number;
     categorySort: 'amount' | 'name';
     groupAccounts: boolean;
+    showCategoryGroups: boolean;
   },
 ): SankeyData {
   const categoryTotals = new Map<string, number>();
@@ -88,6 +91,23 @@ function buildScheduledCashFlowSankeyData(
             name: account.accountName,
           }))),
     ...data.categories
+      .filter(category =>
+        options.showCategoryGroups ? visibleCategories.has(category.id) : false,
+      )
+      .reduce<Array<{ key: string; name: string }>>((groups, category) => {
+        if (
+          category.groupId &&
+          category.groupName &&
+          !groups.some(group => group.key === `group:${category.groupId}`)
+        ) {
+          groups.push({
+            key: `group:${category.groupId}`,
+            name: category.groupName,
+          });
+        }
+        return groups;
+      }, []),
+    ...data.categories
       .filter(category => visibleCategories.has(category.id))
       .map(category => ({
         key: `category:${category.id}`,
@@ -119,7 +139,20 @@ function buildScheduledCashFlowSankeyData(
     } else if (occurrence.amount < 0) {
       const categoryKey = `category:${occurrence.categoryId ?? 'uncategorized'}`;
       if (visibleCategories.has(occurrence.categoryId ?? 'uncategorized')) {
-        addLink(accountKey, categoryKey, Math.abs(occurrence.amount));
+        const category = data.categories.find(
+          item => item.id === (occurrence.categoryId ?? 'uncategorized'),
+        );
+        if (
+          options.showCategoryGroups &&
+          category?.groupId &&
+          category.groupName
+        ) {
+          const groupKey = `group:${category.groupId}`;
+          addLink(accountKey, groupKey, Math.abs(occurrence.amount));
+          addLink(groupKey, categoryKey, Math.abs(occurrence.amount));
+        } else {
+          addLink(accountKey, categoryKey, Math.abs(occurrence.amount));
+        }
         addLink(categoryKey, 'expenses', Math.abs(occurrence.amount));
       }
     }
