@@ -69,6 +69,7 @@ type AccountHeaderProps = {
   transactions: TransactionEntity[];
   showExtraBalances: boolean;
   showReconciled: boolean;
+  showDateSeparators?: boolean;
   showEmptyMessage: boolean;
   balanceQuery: ComponentProps<typeof ReconcilingMessage>['balanceQuery'];
   reconcileAmount?: number | null;
@@ -141,6 +142,7 @@ export function AccountHeader({
   transactions,
   showExtraBalances,
   showReconciled,
+  showDateSeparators,
   showEmptyMessage,
   balanceQuery,
   reconcileAmount,
@@ -361,8 +363,7 @@ export function AccountHeader({
           )}
 
           {!showEmptyMessage && (
-            <Button variant="bare" onPress={onAddTransaction}>
-              <SvgAdd width={10} height={10} style={{ marginRight: 3 }} />
+            <Button variant="bare" onPress={() => onAddTransaction()}>
               <Trans>Add New</Trans>
             </Button>
           )}
@@ -505,6 +506,7 @@ export function AccountHeader({
                       showNetWorthChart={showNetWorthChart}
                       isSorted={isSorted}
                       showReconciled={showReconciled}
+                      showDateSeparators={showDateSeparators}
                       onMenuSelect={onMenuSelect}
                     />
                   </Dialog>
@@ -546,6 +548,12 @@ export function AccountHeader({
                         {
                           name: 'manage-columns',
                           text: t('Manage table columns'),
+                        },
+                        {
+                          name: 'toggle-date-separators',
+                          text: showDateSeparators
+                            ? t('Hide date separators')
+                            : t('Show date separators'),
                         },
                       ]}
                     />
@@ -721,6 +729,7 @@ type AccountMenuProps = {
   canSync: boolean;
   showNetWorthChart: boolean;
   showReconciled: boolean;
+  showDateSeparators?: boolean;
   isSorted: boolean;
   onMenuSelect: (
     item:
@@ -732,7 +741,8 @@ type AccountMenuProps = {
       | 'remove-sorting'
       | 'toggle-reconciled'
       | 'toggle-net-worth-chart'
-      | 'manage-columns',
+      | 'manage-columns'
+      | 'toggle-date-separators',
   ) => void;
 };
 
@@ -741,6 +751,7 @@ function AccountMenu({
   canSync,
   showNetWorthChart,
   showReconciled,
+  showDateSeparators,
   isSorted,
   onMenuSelect,
 }: AccountMenuProps) {
@@ -777,6 +788,12 @@ function AccountMenu({
           text: showReconciled
             ? t('Hide reconciled transactions')
             : t('Show reconciled transactions'),
+        },
+        {
+          name: 'toggle-date-separators',
+          text: showDateSeparators
+            ? t('Hide date separators')
+            : t('Show date separators'),
         },
         { name: 'export', text: t('Export') },
         ...(account && !account.closed

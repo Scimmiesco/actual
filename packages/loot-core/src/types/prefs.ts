@@ -41,6 +41,8 @@ export type SyncedPrefs = Partial<
     | 'transaction-table-columns'
     | `transaction-table-columns-${string}`
     | `show-group-${string}`
+    | 'show-date-separators'
+    | `show-date-separators-${string}`
     | 'sync-transfer-date'
     // TODO: pull from src/components/modals/ImportTransactions.js
     | `parse-date-${string}-${'csv' | 'qif'}`
