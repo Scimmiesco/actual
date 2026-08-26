@@ -7,36 +7,96 @@ import type { ScheduledCashFlowChartData } from '#components/reports/reports/sch
 
 type ScheduledCashFlowSankeyGraphProps = {
   data: ScheduledCashFlowChartData;
+  topNcategories: number;
+  categorySort: 'amount' | 'name';
+  showPercentages: boolean;
+  groupAccounts: boolean;
 };
 
 export function ScheduledCashFlowSankeyGraph({
   data,
+  topNcategories,
+  categorySort,
+  showPercentages,
+  groupAccounts,
 }: ScheduledCashFlowSankeyGraphProps) {
   const { t } = useTranslation();
-  const sankeyData = buildScheduledCashFlowSankeyData(data, {
-    income: t('Scheduled income'),
-    expenses: t('Scheduled expenses'),
-  });
+  const sankeyData = buildScheduledCashFlowSankeyData(
+    data,
+    {
+      income: t('Scheduled income'),
+      expenses: t('Scheduled expenses'),
+      accounts: t('Accounts'),
+      uncategorized: t('Uncategorized'),
+    },
+    { topNcategories, categorySort, groupAccounts },
+  );
 
-  return <SankeyGraph data={sankeyData} style={{ height: 240 }} />;
+  return (
+    <SankeyGraph
+      data={sankeyData}
+      showPercentages={showPercentages}
+      style={{ height: 240 }}
+    />
+  );
 }
 
 function buildScheduledCashFlowSankeyData(
   data: ScheduledCashFlowChartData,
-  labels: { income: string; expenses: string },
+  labels: {
+    income: string;
+    expenses: string;
+    accounts: string;
+    uncategorized: string;
+  },
+  options: {
+    topNcategories: number;
+    categorySort: 'amount' | 'name';
+    groupAccounts: boolean;
+  },
 ): SankeyData {
+  const categoryTotals = new Map<string, number>();
+  for (const occurrence of data.occurrences) {
+    if (occurrence.amount < 0) {
+      const key = occurrence.categoryId ?? 'uncategorized';
+      categoryTotals.set(
+        key,
+        (categoryTotals.get(key) ?? 0) + Math.abs(occurrence.amount),
+      );
+    }
+  }
+  const categoryIds = [...categoryTotals.keys()]
+    .sort((a, b) => {
+      if (options.categorySort === 'name') {
+        const aName = data.categories.find(category => category.id === a)?.name;
+        const bName = data.categories.find(category => category.id === b)?.name;
+        return (aName ?? a).localeCompare(bName ?? b);
+      }
+      return (categoryTotals.get(b) ?? 0) - (categoryTotals.get(a) ?? 0);
+    })
+    .slice(0, options.topNcategories);
+  const visibleCategories = new Set(categoryIds);
+
   const nodes = [
     { key: 'income', name: labels.income },
-    ...data.accountBreakdown
-      .filter(account => account.income > 0 || account.expenses < 0)
-      .map(account => ({
-        key: `account:${account.accountId}`,
-        name: account.accountName,
+    ...(options.groupAccounts
+      ? [{ key: 'account:all', name: labels.accounts }]
+      : data.accountBreakdown
+          .filter(account => account.income > 0 || account.expenses < 0)
+          .map(account => ({
+            key: `account:${account.accountId}`,
+            name: account.accountName,
+          }))),
+    ...data.categories
+      .filter(category => visibleCategories.has(category.id))
+      .map(category => ({
+        key: `category:${category.id}`,
+        name: category.name,
       })),
-    ...data.categories.map(category => ({
-      key: `category:${category.id}`,
-      name: category.name,
-    })),
+    ...(visibleCategories.has('uncategorized') &&
+    !data.categories.some(category => category.id === 'uncategorized')
+      ? [{ key: 'category:uncategorized', name: labels.uncategorized }]
+      : []),
     { key: 'expenses', name: labels.expenses },
   ];
   const nodeIndex = new Map(nodes.map((node, index) => [node.key, index]));
@@ -51,25 +111,71 @@ function buildScheduledCashFlowSankeyData(
   }
 
   for (const occurrence of data.occurrences) {
-    const accountKey = `account:${occurrence.accountId}`;
+    const accountKey = options.groupAccounts
+      ? 'account:all'
+      : `account:${occurrence.accountId}`;
     if (occurrence.amount > 0) {
       addLink('income', accountKey, occurrence.amount);
     } else if (occurrence.amount < 0) {
       const categoryKey = `category:${occurrence.categoryId ?? 'uncategorized'}`;
-      addLink(accountKey, categoryKey, Math.abs(occurrence.amount));
-      addLink(categoryKey, 'expenses', Math.abs(occurrence.amount));
+      if (visibleCategories.has(occurrence.categoryId ?? 'uncategorized')) {
+        addLink(accountKey, categoryKey, Math.abs(occurrence.amount));
+        addLink(categoryKey, 'expenses', Math.abs(occurrence.amount));
+      }
     }
   }
 
+  const totalFlow = Math.max(
+    data.occurrences
+      .filter(occurrence => occurrence.amount > 0)
+      .reduce((sum, occurrence) => sum + occurrence.amount, 0),
+    data.occurrences
+      .filter(occurrence => occurrence.amount < 0)
+      .reduce((sum, occurrence) => sum + Math.abs(occurrence.amount), 0),
+  );
+  const incomingValues = new Map<number, number>();
+  const outgoingValues = new Map<number, number>();
+  for (const [key, value] of links) {
+    const [source, target] = key.split('->');
+    const sourceIndex = nodeIndex.get(source);
+    const targetIndex = nodeIndex.get(target);
+    if (sourceIndex != null) {
+      outgoingValues.set(
+        sourceIndex,
+        (outgoingValues.get(sourceIndex) ?? 0) + value,
+      );
+    }
+    if (targetIndex != null) {
+      incomingValues.set(
+        targetIndex,
+        (incomingValues.get(targetIndex) ?? 0) + value,
+      );
+    }
+  }
+  const sankeyLinks = [...links.entries()].map(([key, value]) => {
+    const [source, target] = key.split('->');
+    return {
+      source: nodeIndex.get(source) ?? -1,
+      target: nodeIndex.get(target) ?? -1,
+      value,
+    };
+  });
+
   return {
-    nodes,
-    links: [...links.entries()].map(([key, value]) => {
-      const [source, target] = key.split('->');
-      return {
-        source: nodeIndex.get(source) ?? -1,
-        target: nodeIndex.get(target) ?? -1,
-        value,
-      };
-    }),
+    nodes: nodes.map((node, index) => ({
+      ...node,
+      percentageLabel:
+        totalFlow > 0
+          ? `${Math.round(
+              (Math.max(
+                incomingValues.get(index) ?? 0,
+                outgoingValues.get(index) ?? 0,
+              ) /
+                totalFlow) *
+                100,
+            )}%`
+          : undefined,
+    })),
+    links: sankeyLinks,
   };
 }

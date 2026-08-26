@@ -77,6 +77,18 @@ function ScheduledCashFlowInner({ widget }: ScheduledCashFlowInnerProps) {
   const [granularity, setGranularity] = useState<'Daily' | 'Monthly'>(
     widget?.meta?.granularity ?? 'Monthly',
   );
+  const [topNcategories, setTopNcategories] = useState(
+    widget?.meta?.topNcategories ?? 15,
+  );
+  const [categorySort, setCategorySort] = useState<'amount' | 'name'>(
+    widget?.meta?.categorySort ?? 'amount',
+  );
+  const [showPercentages, setShowPercentages] = useState(
+    widget?.meta?.showPercentages ?? false,
+  );
+  const [groupAccounts, setGroupAccounts] = useState(
+    widget?.meta?.groupAccounts ?? false,
+  );
   const [selectedAccountIds, setSelectedAccountIds] = useState<string[]>(
     widget?.meta?.accounts ?? [],
   );
@@ -181,6 +193,10 @@ function ScheduledCashFlowInner({ widget }: ScheduledCashFlowInnerProps) {
             conditions,
             conditionsOp,
             granularity,
+            topNcategories,
+            categorySort,
+            showPercentages,
+            groupAccounts,
             timeFrame: { start, end, mode },
           },
         },
@@ -248,14 +264,47 @@ function ScheduledCashFlowInner({ widget }: ScheduledCashFlowInnerProps) {
         conditionsOp={conditionsOp}
         onConditionsOpChange={onConditionsOpChange}
         inlineContent={
-          <Select
-            value={granularity}
-            onChange={setGranularity}
-            options={[
-              ['Monthly', t('Monthly')],
-              ['Daily', t('Daily')],
-            ]}
-          />
+          <>
+            <Select
+              value={granularity}
+              onChange={setGranularity}
+              options={[
+                ['Monthly', t('Monthly')],
+                ['Daily', t('Daily')],
+              ]}
+            />
+            <Select
+              value={String(topNcategories)}
+              onChange={value => setTopNcategories(Number(value))}
+              options={[
+                ['5', t('Top 5 categories')],
+                ['10', t('Top 10 categories')],
+                ['15', t('Top 15 categories')],
+                ['30', t('Top 30 categories')],
+                ['100000', t('All categories')],
+              ]}
+            />
+            <Select
+              value={categorySort}
+              onChange={setCategorySort}
+              options={[
+                ['amount', t('Sort by amount')],
+                ['name', t('Sort by name')],
+              ]}
+            />
+            <Button
+              variant={showPercentages ? 'primary' : 'normal'}
+              onPress={() => setShowPercentages(value => !value)}
+            >
+              <Trans>%</Trans>
+            </Button>
+            <Button
+              variant={groupAccounts ? 'primary' : 'normal'}
+              onPress={() => setGroupAccounts(value => !value)}
+            >
+              <Trans>Group accounts</Trans>
+            </Button>
+          </>
         }
       >
         {widget && (
@@ -308,7 +357,13 @@ function ScheduledCashFlowInner({ widget }: ScheduledCashFlowInnerProps) {
                 }
               />
             </View>
-            <ScheduledCashFlowSankeyGraph data={chartData} />
+            <ScheduledCashFlowSankeyGraph
+              data={chartData}
+              topNcategories={topNcategories}
+              categorySort={categorySort}
+              showPercentages={showPercentages}
+              groupAccounts={groupAccounts}
+            />
             <ScheduledCashFlowTable occurrences={chartData.occurrences} />
           </>
         )}

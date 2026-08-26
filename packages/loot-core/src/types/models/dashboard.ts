@@ -426,5 +426,9 @@ export type ScheduledCashFlowWidget = AbstractWidget<
     conditionsOp?: 'and' | 'or';
     timeFrame?: TimeFrame;
     granularity?: 'Daily' | 'Monthly';
+    topNcategories?: number;
+    categorySort?: 'amount' | 'name';
+    showPercentages?: boolean;
+    groupAccounts?: boolean;
   } | null
 >;
