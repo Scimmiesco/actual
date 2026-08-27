@@ -6,10 +6,7 @@ import { Trans, useTranslation } from 'react-i18next';
 
 import { Button } from '@actual-app/components/button';
 import { AnimatedLoading } from '@actual-app/components/icons/AnimatedLoading';
-import {
-  SvgAdd,
-  SvgDotsHorizontalTriple,
-} from '@actual-app/components/icons/v1';
+import { SvgDotsHorizontalTriple } from '@actual-app/components/icons/v1';
 import {
   SvgArrowsExpand3,
   SvgArrowsShrink3,

@@ -43,6 +43,9 @@ export type SyncedPrefs = Partial<
     | `show-group-${string}`
     | 'show-date-separators'
     | `show-date-separators-${string}`
+    | 'primary-balance-view'
+    | `primary-balance-view-${string}`
+    | 'sidebar.onbudget-balance-view'
     | 'sync-transfer-date'
     // TODO: pull from src/components/modals/ImportTransactions.js
     | `parse-date-${string}-${'csv' | 'qif'}`
