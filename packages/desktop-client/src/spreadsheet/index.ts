@@ -10,7 +10,9 @@ export type Spreadsheets = {
     balance: number;
     [key: `balance-${string}-cleared`]: number | null;
     'accounts-balance': number;
+    'accounts-balance-onbudget-cleared': number;
     'onbudget-accounts-balance': number;
+    'onbudget-accounts-balance-cleared': number;
     'offbudget-accounts-balance': number;
     'closed-accounts-balance': number;
     balanceCleared: number;
