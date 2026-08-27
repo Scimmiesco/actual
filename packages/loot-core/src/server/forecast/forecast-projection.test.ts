@@ -88,6 +88,9 @@ describe('forecast projection', () => {
     expect(result.dataPoints[0].transactions).toMatchObject([
       { amount: 10, scheduleId: 'sched-1' },
     ]);
+    expect(result.dataPoints[1].transactions).toMatchObject([
+      { amount: -40, scheduleName: 'Transaction' },
+    ]);
     expect(result.lowestBalance).toEqual({
       date: '2024-03-03',
       balance: 70,

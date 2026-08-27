@@ -544,7 +544,9 @@ describe('forecast app', () => {
     expect(balanceByDate['2024-03-10']).toBe(salaryAmount);
     expect(balanceByDate['2024-04-09']).toBe(salaryAmount);
     expect(balanceByDate['2024-04-10']).toBe(salaryAmount * 2);
-    expect(dataPointByDate['2024-03-10'].transactions).toEqual([]);
+    expect(dataPointByDate['2024-03-10'].transactions).toMatchObject([
+      { amount: salaryAmount },
+    ]);
   });
 
   it('does not double-count daily recurring schedule occurrences with op is posted on the due date', async () => {
@@ -555,7 +557,9 @@ describe('forecast app', () => {
       });
 
     expect(balanceByDate['2024-03-10']).toBe(amount);
-    expect(dataPointByDate['2024-03-10'].transactions).toEqual([]);
+    expect(dataPointByDate['2024-03-10'].transactions).toMatchObject([
+      { amount },
+    ]);
     expect(dataPointByDate['2024-03-11']).toMatchObject({
       balance: amount * 2,
       transactions: [{ amount }],
@@ -769,5 +773,49 @@ describe('forecast app', () => {
         dataPoint => dataPoint.accountId !== FORECAST_UNASSIGNED_ACCOUNT_ID,
       ),
     ).toBe(true);
+  });
+
+  it('includes future transactions for account ab20b57d-2eb3-459c-99e2-f2eca64096b2 on 2026-09-09 in forecast results', async () => {
+    MockDate.set(new Date('2026-08-27T00:00:00Z'));
+    const creditCardAccountId = 'ab20b57d-2eb3-459c-99e2-f2eca64096b2';
+    await db.insertAccount({
+      id: creditCardAccountId,
+      name: 'Credit Card',
+      offbudget: 0,
+    });
+    const payeeId = await db.insertPayee({ name: 'Amazon' });
+    const groupId = await db.insertCategoryGroup({ name: 'Expenses' });
+    const categoryId = await db.insertCategory({
+      name: 'Shopping',
+      cat_group: groupId,
+    });
+
+    await db.insertTransaction({
+      id: 'cc-tx-future',
+      account: creditCardAccountId,
+      amount: -15000,
+      date: '2026-09-09',
+      payee: payeeId,
+      category: categoryId,
+    });
+
+    const result = await generateForecast({
+      startDate: '2026-08-01',
+      endDate: '2026-09-30',
+    });
+
+    const sept9Points = result.dataPoints.filter(
+      point =>
+        point.date === '2026-09-09' && point.accountId === creditCardAccountId,
+    );
+    expect(sept9Points).toHaveLength(1);
+    expect(sept9Points[0].transactions).toEqual([
+      expect.objectContaining({
+        amount: -15000,
+        payee: 'Amazon',
+        category: categoryId,
+        scheduleName: 'Transaction',
+      }),
+    ]);
   });
 });

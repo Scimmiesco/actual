@@ -102,4 +102,61 @@ describe('buildScheduledCashFlowChartData', () => {
       { date: '2024-03-12', total: 0 },
     ]);
   });
+
+  it('includes account ab20b57d-2eb3-459c-99e2-f2eca64096b2 and its September 9th transaction in chart occurrences and totals', () => {
+    const creditCardId = 'ab20b57d-2eb3-459c-99e2-f2eca64096b2';
+    const data = buildScheduledCashFlowChartData({
+      forecastData: {
+        dataPoints: [
+          {
+            date: '2026-09-09',
+            balance: -150,
+            accountId: creditCardId,
+            accountName: 'Credit Card',
+            transactions: [
+              {
+                amount: -150,
+                payee: 'Amazon',
+                category: 'shopping',
+                scheduleId: null,
+                scheduleName: 'Transaction',
+              },
+            ],
+          },
+        ],
+        lowestBalance: {
+          date: '2026-09-09',
+          balance: -150,
+          accountId: creditCardId,
+          accountName: 'Credit Card',
+        },
+        forecastStartDate: '2026-08-01',
+        forecastEndDate: '2027-07-31',
+      },
+      start: '2026-08',
+      end: '2027-07',
+      granularity: 'Monthly',
+      accounts: [{ id: creditCardId, name: 'Credit Card' }] as AccountEntity[],
+      categories: [{ id: 'shopping', name: 'Shopping' }] as CategoryEntity[],
+      uncategorizedLabel: 'Uncategorized',
+    });
+
+    expect(data.occurrences).toContainEqual({
+      date: '2026-09-09',
+      accountId: creditCardId,
+      accountName: 'Credit Card',
+      payee: 'Amazon',
+      scheduleName: 'Transaction',
+      categoryId: 'shopping',
+      categoryName: 'Shopping',
+      amount: -150,
+    });
+    expect(data.accountBreakdown).toContainEqual({
+      accountId: creditCardId,
+      accountName: 'Credit Card',
+      income: 0,
+      expenses: -150,
+    });
+    expect(data.totalExpenses).toBe(-150);
+  });
 });

@@ -13,8 +13,8 @@ export type ForecastTransaction = {
   payee: string | null;
   /** Category selected by the same rule engine used when posting the schedule. */
   category?: string | null;
-  scheduleId: string;
-  scheduleName: string;
+  scheduleId?: string | null;
+  scheduleName?: string | null;
 };
 
 export type BalanceForecastConfig = {

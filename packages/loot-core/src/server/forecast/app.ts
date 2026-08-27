@@ -8,7 +8,11 @@ import type {
   AccountWithComputedBalance,
   DbAccountForRules,
 } from './forecast-accounts';
-import { buildFilterInfo, getTransactions } from './forecast-filters';
+import {
+  buildFilterInfo,
+  enrichForecastFilterObjects,
+  getTransactions,
+} from './forecast-filters';
 import {
   buildForecastDateContext,
   createEmptyForecastResult,
@@ -146,16 +150,24 @@ export async function generateForecast({
     );
   }
 
-  const futureOccurrences = await buildFutureScheduleOccurrences(
-    schedules,
-    dateContext.endDateObj,
-    accountsById,
-    ruleAccountsById,
-    transactions,
+  const [futureOccurrences, filterObjectsByTransactionId] = await Promise.all([
+    buildFutureScheduleOccurrences(
+      schedules,
+      dateContext.endDateObj,
+      accountsById,
+      ruleAccountsById,
+      transactions,
+    ),
+    enrichForecastFilterObjects(transactions, accountsById),
+  ]);
+  const scheduleNamesById = new Map(
+    schedulesRaw.map(schedule => [schedule.id, schedule.name || 'Scheduled']),
   );
   const { dataPoints, lowestBalance } = projectForecastData({
     accounts,
     transactions,
+    filterObjectsByTransactionId,
+    scheduleNamesById,
     futureOccurrences,
     filterInfo,
     dateContext,

@@ -2,11 +2,18 @@ import { addMonths, format } from 'date-fns';
 
 import * as monthUtils from '#shared/months';
 import type { TransactionEntity } from '#types/models';
-import type { ForecastDataPoint, ForecastResult } from '#types/models/forecast';
+import type {
+  ForecastDataPoint,
+  ForecastResult,
+  ForecastTransaction,
+} from '#types/models/forecast';
 
 import type { AccountWithComputedBalance } from './forecast-accounts';
 import { matchesForecastFilters } from './forecast-filters';
-import type { ForecastFilterInfo } from './forecast-filters';
+import type {
+  ForecastFilterInfo,
+  ForecastFilterObject,
+} from './forecast-filters';
 import type { ForecastScheduleOccurrence } from './forecast-schedules';
 
 type ScheduleOccurrenceSummary = {
@@ -25,6 +32,7 @@ type ScheduleOccurrencesByAccount = Record<
 type PostedTransactionSummary = {
   startingBalance: number;
   txsByDay: Record<string, number>;
+  transactionsByDay: Record<string, ForecastTransaction[]>;
 };
 
 export type ForecastDateContext = {
@@ -38,6 +46,8 @@ export type ForecastDateContext = {
 type ProjectForecastDataParams = {
   accounts: AccountWithComputedBalance[];
   transactions: TransactionEntity[];
+  filterObjectsByTransactionId?: Map<string, ForecastFilterObject>;
+  scheduleNamesById?: Map<string, string>;
   futureOccurrences: ForecastScheduleOccurrence[];
   filterInfo: ForecastFilterInfo;
   dateContext: ForecastDateContext;
@@ -160,12 +170,15 @@ function groupTransactionsByAccount(transactions: TransactionEntity[]) {
 
 function summarizePostedTransactions(
   accountTransactions: TransactionEntity[],
+  filterObjectsByTransactionId: Map<string, ForecastFilterObject> | undefined,
+  scheduleNamesById: Map<string, string> | undefined,
   forecastStartDate: string,
   forecastEndDate: string,
 ): PostedTransactionSummary {
   const summary: PostedTransactionSummary = {
     startingBalance: 0,
     txsByDay: {},
+    transactionsByDay: {},
   };
 
   for (const tx of accountTransactions) {
@@ -179,6 +192,27 @@ function summarizePostedTransactions(
     }
 
     summary.txsByDay[tx.date] = (summary.txsByDay[tx.date] || 0) + tx.amount;
+
+    if (!summary.transactionsByDay[tx.date]) {
+      summary.transactionsByDay[tx.date] = [];
+    }
+
+    const filterObj = filterObjectsByTransactionId?.get(tx.id);
+    const payeeName =
+      filterObj?.payee?.name ??
+      tx.imported_payee ??
+      (typeof tx.payee === 'string' ? tx.payee : null);
+    const scheduleName = tx.schedule
+      ? (scheduleNamesById?.get(tx.schedule) ?? 'Scheduled')
+      : 'Transaction';
+
+    summary.transactionsByDay[tx.date].push({
+      amount: tx.amount,
+      payee: payeeName,
+      category: tx.category ?? null,
+      scheduleId: tx.schedule ?? null,
+      scheduleName,
+    });
   }
 
   return summary;
@@ -194,6 +228,7 @@ function buildAccountForecastDataPoints(
 
   return forecastDays.map(day => {
     const txDelta = postedTransactions.txsByDay[day] || 0;
+    const dayPostedTxns = postedTransactions.transactionsByDay[day] || [];
     const scheduleTxns = scheduleOccurrencesByDay[day] || [];
     const scheduleDelta = scheduleTxns.reduce((sum, tx) => sum + tx.amount, 0);
     runningBalance += txDelta + scheduleDelta;
@@ -203,13 +238,16 @@ function buildAccountForecastDataPoints(
       balance: runningBalance,
       accountId: account.id,
       accountName: account.name,
-      transactions: scheduleTxns.map(scheduleTxn => ({
-        amount: scheduleTxn.amount,
-        payee: scheduleTxn.payee,
-        category: scheduleTxn.category,
-        scheduleId: scheduleTxn.scheduleId,
-        scheduleName: scheduleTxn.scheduleName,
-      })),
+      transactions: [
+        ...dayPostedTxns,
+        ...scheduleTxns.map(scheduleTxn => ({
+          amount: scheduleTxn.amount,
+          payee: scheduleTxn.payee,
+          category: scheduleTxn.category,
+          scheduleId: scheduleTxn.scheduleId,
+          scheduleName: scheduleTxn.scheduleName,
+        })),
+      ],
     };
   });
 }
@@ -261,6 +299,8 @@ function calculateLowestBalance(
 export function projectForecastData({
   accounts,
   transactions,
+  filterObjectsByTransactionId,
+  scheduleNamesById,
   futureOccurrences,
   filterInfo,
   dateContext,
@@ -283,6 +323,8 @@ export function projectForecastData({
       account,
       summarizePostedTransactions(
         transactionsByAccount.get(account.id) ?? [],
+        filterObjectsByTransactionId,
+        scheduleNamesById,
         dateContext.forecastStartDate,
         dateContext.forecastEndDate,
       ),

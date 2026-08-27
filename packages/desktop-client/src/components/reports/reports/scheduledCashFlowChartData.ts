@@ -84,8 +84,9 @@ export function buildScheduledCashFlowChartData({
         accountId: dataPoint.accountId,
         accountName:
           accountNames.get(dataPoint.accountId) ?? dataPoint.accountName,
-        payee: transaction.payee ?? transaction.scheduleName,
-        scheduleName: transaction.scheduleName,
+        payee:
+          transaction.payee ?? transaction.scheduleName ?? uncategorizedLabel,
+        scheduleName: transaction.scheduleName ?? transaction.payee ?? '',
         categoryId,
         categoryName: categoryId
           ? (categoryNames.get(categoryId) ?? uncategorizedLabel)
