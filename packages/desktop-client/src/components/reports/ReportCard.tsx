@@ -108,9 +108,18 @@ export function ReportCard({
   if (to && !isEditing && !disableClick) {
     return (
       <Layout {...layoutProps}>
-        <Button
-          variant="bare"
-          onPress={() => navigate(to, { state: { goBack: true } })}
+        <View
+          role="button"
+          tabIndex={0}
+          onClick={() => {
+            void navigate(to, { state: { goBack: true } });
+          }}
+          onKeyDown={e => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              void navigate(to, { state: { goBack: true } });
+            }
+          }}
           style={{
             height: '100%',
             width: '100%',
@@ -118,10 +127,11 @@ export function ReportCard({
             padding: 0,
             textAlign: 'left',
             overflow: 'visible',
+            cursor: 'pointer',
           }}
         >
           {content}
-        </Button>
+        </View>
       </Layout>
     );
   }

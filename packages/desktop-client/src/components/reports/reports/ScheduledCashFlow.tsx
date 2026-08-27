@@ -95,9 +95,6 @@ function ScheduledCashFlowInner({ widget }: ScheduledCashFlowInnerProps) {
   const [selectedAccountIds, setSelectedAccountIds] = useState<string[]>(
     widget?.meta?.accounts ?? [],
   );
-  const [hasInitializedAccounts, setHasInitializedAccounts] = useState(
-    widget?.meta?.accounts !== undefined,
-  );
 
   const {
     conditions,
@@ -122,15 +119,21 @@ function ScheduledCashFlowInner({ widget }: ScheduledCashFlowInnerProps) {
   }, [widget?.meta?.timeFrame]);
 
   useEffect(() => {
-    if (
-      !hasInitializedAccounts &&
-      widget?.meta?.accounts === undefined &&
-      accounts.length > 0
-    ) {
-      setSelectedAccountIds(accounts.map(account => account.id));
-      setHasInitializedAccounts(true);
+    if (widget?.meta?.accounts === undefined && accounts.length > 0) {
+      setSelectedAccountIds(prev => {
+        if (prev.length === 0) {
+          return accounts.map(account => account.id);
+        }
+        // If all previous accounts were selected, auto-include newly added accounts
+        const allPrevSelected =
+          accounts.filter(a => prev.includes(a.id)).length === prev.length;
+        if (allPrevSelected && prev.length < accounts.length) {
+          return accounts.map(account => account.id);
+        }
+        return prev;
+      });
     }
-  }, [accounts, hasInitializedAccounts, widget?.meta?.accounts]);
+  }, [accounts, widget?.meta?.accounts]);
 
   const startDate = start;
   const endDate = end;
@@ -327,6 +330,8 @@ function ScheduledCashFlowInner({ widget }: ScheduledCashFlowInnerProps) {
 
       <View
         style={{
+          flex: 1,
+          minHeight: 0,
           backgroundColor: theme.tableBackground,
           padding: 20,
           overflowY: 'auto',
