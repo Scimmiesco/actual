@@ -26,6 +26,7 @@ import { Trans, useTranslation } from 'react-i18next';
 import { Button } from '@actual-app/components/button';
 import { SvgSplit } from '@actual-app/components/icons/v0';
 import {
+  SvgAdd,
   SvgArrowDown,
   SvgArrowUp,
   SvgCheveronDown,
@@ -98,6 +99,7 @@ import {
   Field,
   InputCell,
   Row,
+  ROW_HEIGHT,
   SelectCell,
   Table,
   UnexposedCellContent,
@@ -2576,6 +2578,69 @@ function NewTransaction({
   );
 }
 
+type DateSeparatorItem = {
+  id: `date-sep-${string}`;
+  is_separator: true;
+  date: string;
+};
+
+type TableRowItem = TransactionEntity | DateSeparatorItem;
+
+type DateSeparatorRowProps = {
+  date: string;
+  dateFormat: string;
+  onAddTransaction?: (date?: string) => void;
+};
+
+function DateSeparatorRow({
+  date,
+  dateFormat,
+  onAddTransaction,
+}: DateSeparatorRowProps) {
+  const { t } = useTranslation();
+  const formattedDate = date
+    ? `${monthUtils.format(date, dateFormat)} - ${monthUtils.format(date, 'EEEE')}`
+    : '';
+
+  return (
+    <Row
+      height={ROW_HEIGHT}
+      style={{
+        backgroundColor: theme.tableHeaderBackground,
+        color: theme.tableHeaderText,
+        borderTop: `1px solid ${theme.tableBorderSeparator}`,
+        borderBottom: `1px solid ${theme.tableBorderSeparator}`,
+        userSelect: 'none',
+        paddingLeft: 12,
+        paddingRight: 12,
+        alignItems: 'center',
+        flexDirection: 'row',
+        fontWeight: 600,
+        fontSize: 13,
+      }}
+      data-testid="date-separator-row"
+    >
+      <Text style={{ color: theme.tableHeaderText, fontWeight: 600, flex: 1 }}>
+        {formattedDate}
+      </Text>
+      {onAddTransaction && (
+        <Button
+          variant="bare"
+          aria-label={t('Add transaction for this date')}
+          onPress={() => onAddTransaction(date)}
+          style={{
+            padding: 3,
+            color: theme.tableHeaderText,
+          }}
+          data-testid="add-transaction-for-date-button"
+        >
+          <SvgAdd width={11} height={11} />
+        </Button>
+      )}
+    </Row>
+  );
+}
+
 type TransactionTableInnerProps = {
   tableRef: Ref<TableHandleRef<TransactionEntity>>;
   listContainerRef: RefObject<HTMLDivElement>;
@@ -2600,6 +2665,9 @@ type TransactionTableInnerProps = {
   balances: Record<TransactionEntity['id'], IntegerAmount> | null;
   columns: TransactionTableColumnId[];
   showReconciled: boolean;
+  showDateSeparators?: boolean;
+  addingDate?: string | null;
+  onAddTransaction?: (date?: string) => void;
   currentAccountId: AccountEntity['id'];
   currentCategoryId: CategoryEntity['id'];
   isAdding: boolean;
@@ -2724,6 +2792,27 @@ function TransactionTableInner({
     [props.transactions, props.showReconciled],
   );
 
+  const itemsToRender: TableRowItem[] = useMemo(() => {
+    if (!props.showDateSeparators) {
+      return transactionsToRender;
+    }
+    const items: TableRowItem[] = [];
+    let lastDate: string | null = null;
+    for (const trans of transactionsToRender) {
+      if (!trans.is_child && trans.date && trans.date !== lastDate) {
+        lastDate = trans.date;
+        const separator: DateSeparatorItem = {
+          id: `date-sep-${trans.date}`,
+          is_separator: true,
+          date: trans.date,
+        };
+        items.push(separator);
+      }
+      items.push(trans);
+    }
+    return items;
+  }, [transactionsToRender, props.showDateSeparators]);
+
   const amountColumnWidths = useAmountColumnWidths(
     transactionsToRender,
     props.balances,
@@ -2734,6 +2823,16 @@ function TransactionTableInner({
     index,
     editing,
   }) => {
+    if ('is_separator' in item && item.is_separator) {
+      return (
+        <DateSeparatorRow
+          date={(item as unknown as DateSeparatorItem).date}
+          dateFormat={dateFormat}
+          onAddTransaction={props.onAddTransaction}
+        />
+      );
+    }
+
     const {
       transactions,
       selectedItems,
@@ -2788,21 +2887,31 @@ function TransactionTableInner({
       : 0;
 
     // Compute adjacent row dates for boundary drop detection
-    // Use transactionsToRender (filtered list) to match rendered row indices
-    // Skip non-reorderable rows (child/preview) when finding neighbors
+    // Use itemsToRender (filtered list) to match rendered row indices
+    // Skip non-reorderable rows (child/preview/separator) when finding neighbors
     const findPrevReorderableDate = (): string | null => {
       for (let i = index - 1; i >= 0; i--) {
-        const row = transactionsToRender[i];
-        if (row && !row.is_child && !isPreviewId(row.id)) {
+        const row = itemsToRender[i];
+        if (
+          row &&
+          !('is_separator' in row) &&
+          !row.is_child &&
+          !isPreviewId(row.id)
+        ) {
           return row.date ?? null;
         }
       }
       return null;
     };
     const findNextReorderableDate = (): string | null => {
-      for (let i = index + 1; i < transactionsToRender.length; i++) {
-        const row = transactionsToRender[i];
-        if (row && !row.is_child && !isPreviewId(row.id)) {
+      for (let i = index + 1; i < itemsToRender.length; i++) {
+        const row = itemsToRender[i];
+        if (
+          row &&
+          !('is_separator' in row) &&
+          !row.is_child &&
+          !isPreviewId(row.id)
+        ) {
           return row.date ?? null;
         }
       }
@@ -2956,7 +3065,7 @@ function TransactionTableInner({
           navigator={tableNavigator}
           ref={tableRef}
           listContainerRef={listContainerRef}
-          items={transactionsToRender}
+          items={itemsToRender as unknown as TransactionEntity[]}
           renderItem={renderRow}
           renderEmpty={renderEmpty}
           loadMore={props.loadMoreTransactions}
@@ -3004,6 +3113,7 @@ export type TransactionTableProps = {
   showAccount: boolean;
   showCategory: boolean;
   showGroup?: boolean;
+  showDateSeparators?: boolean;
   // The full set of columns the user wants visible, in display order. When
   // provided, columns are rendered in this order; the show* flags above
   // still control the availability of the account/category/group/balance/
@@ -3012,6 +3122,8 @@ export type TransactionTableProps = {
   currentAccountId: AccountEntity['id'];
   currentCategoryId: CategoryEntity['id'];
   isAdding: boolean;
+  addingDate?: string | null;
+  onAddTransaction?: (date?: string) => void;
   isNew: (id: TransactionEntity['id']) => boolean;
   isMatched: (id: TransactionEntity['id']) => boolean;
   isFiltered?: boolean;
@@ -3303,11 +3415,37 @@ export const TransactionTable = forwardRef(
           makeTemporaryTransactions(
             props.currentAccountId,
             props.currentCategoryId,
+            props.addingDate,
           ),
         );
       }
       setPrevIsAdding(props.isAdding);
     }
+
+    const prevAddingDate = useRef(props.addingDate);
+    useEffect(() => {
+      if (
+        props.isAdding &&
+        props.addingDate &&
+        props.addingDate !== prevAddingDate.current
+      ) {
+        setNewTransactions(
+          makeTemporaryTransactions(
+            props.currentAccountId,
+            props.currentCategoryId,
+            props.addingDate,
+          ),
+        );
+        newNavigator.onEdit('temp', 'account');
+      }
+      prevAddingDate.current = props.addingDate;
+    }, [
+      props.isAdding,
+      props.addingDate,
+      props.currentAccountId,
+      props.currentCategoryId,
+      newNavigator,
+    ]);
 
     if (shouldAdd.current || shouldAddAndClose.current) {
       if (newTransactions?.[0] && newTransactions[0].account == null) {

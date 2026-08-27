@@ -164,7 +164,10 @@ type LiveTransactionTableProps = {
   showCategory: boolean;
   showGroup?: boolean;
   showCleared: boolean;
+  showDateSeparators?: boolean;
   isAdding: boolean;
+  addingDate?: string | null;
+  onAddTransaction?: (date?: string) => void;
   onTransactionsChange?: (newTrans: TransactionEntity[]) => void;
   onCloseAddTransaction?: () => void;
   onApplyRules?: (
@@ -1825,6 +1828,158 @@ describe('Transactions', () => {
         await new Promise(resolve => setTimeout(resolve, 700));
       });
       expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('date separators', () => {
+    test('does not render date separator rows by default or when showDateSeparators is false', () => {
+      const transactions = [
+        ...generateTransaction({
+          account: accounts[0].id,
+          date: '2026-08-26',
+        }),
+        ...generateTransaction({
+          account: accounts[0].id,
+          date: '2026-08-25',
+        }),
+      ];
+      renderTransactions({ transactions });
+      expect(screen.queryAllByTestId('date-separator-row')).toHaveLength(0);
+    });
+
+    test('renders date separator rows for each date group when showDateSeparators is true', () => {
+      const transactions = [
+        ...generateTransaction({
+          account: accounts[0].id,
+          id: 'tx-1',
+          date: '2026-08-26',
+        }),
+        ...generateTransaction({
+          account: accounts[0].id,
+          id: 'tx-2',
+          date: '2026-08-26',
+        }),
+        ...generateTransaction({
+          account: accounts[0].id,
+          id: 'tx-3',
+          date: '2026-08-25',
+        }),
+        ...generateTransaction({
+          account: accounts[0].id,
+          id: 'tx-4',
+          date: '2026-08-24',
+        }),
+        ...generateTransaction({
+          account: accounts[0].id,
+          id: 'tx-5',
+          date: '2026-08-24',
+        }),
+      ];
+      renderTransactions({ transactions, showDateSeparators: true });
+      const separatorRows = screen.getAllByTestId('date-separator-row');
+      expect(separatorRows).toHaveLength(3);
+      expect(separatorRows[0].textContent).toContain('08/26/2026');
+      expect(separatorRows[0].textContent).toContain('Wednesday');
+      expect(separatorRows[1].textContent).toContain('08/25/2026');
+      expect(separatorRows[1].textContent).toContain('Tuesday');
+      expect(separatorRows[2].textContent).toContain('08/24/2026');
+      expect(separatorRows[2].textContent).toContain('Monday');
+    });
+
+    test('does not render date separator rows for split child transactions', () => {
+      const parent = generateTransaction({
+        account: accounts[0].id,
+        id: 'parent-1',
+        date: '2026-08-26',
+      })[0];
+      const { data: splitTransactions } = splitTransaction([parent], parent.id);
+      const otherTrans = generateTransaction({
+        account: accounts[0].id,
+        id: 'tx-other',
+        date: '2026-08-25',
+      })[0];
+      const transactions = [...splitTransactions, otherTrans];
+
+      renderTransactions({ transactions, showDateSeparators: true });
+      const separatorRows = screen.getAllByTestId('date-separator-row');
+      // Should have 1 for 2026-08-26 (parent split) and 1 for 2026-08-25 (otherTrans)
+      expect(separatorRows).toHaveLength(2);
+      expect(separatorRows[0].textContent).toContain('08/26/2026');
+      expect(separatorRows[1].textContent).toContain('08/25/2026');
+    });
+
+    test('renders + button on date separator row and calls onAddTransaction with the date when clicked', () => {
+      const onAddTransaction = vi.fn();
+      const transactions = [
+        ...generateTransaction({
+          account: accounts[0].id,
+          id: 'tx-1',
+          date: '2026-08-26',
+        }),
+      ];
+
+      renderTransactions({
+        transactions,
+        showDateSeparators: true,
+        onAddTransaction,
+      });
+
+      const addButtons = screen.getAllByTestId(
+        'add-transaction-for-date-button',
+      );
+      expect(addButtons).toHaveLength(1);
+      fireEvent.click(addButtons[0]);
+      expect(onAddTransaction).toHaveBeenCalledWith('2026-08-26');
+    });
+
+    test('pre-fills the new transaction with addingDate when adding a transaction', () => {
+      const transactions = [
+        ...generateTransaction({
+          account: accounts[0].id,
+          id: 'tx-1',
+          date: '2026-08-26',
+        }),
+      ];
+
+      const { container } = renderTransactions({
+        transactions,
+        showDateSeparators: true,
+        isAdding: true,
+        addingDate: '2026-08-20',
+      });
+
+      const dateInput = queryNewField(
+        container,
+        'date',
+        'input',
+      ) as HTMLInputElement;
+      expect(dateInput.value).toBe('08/20/2026');
+    });
+
+    test('handles non-string addingDate gracefully without throwing', () => {
+      const transactions = [
+        ...generateTransaction({
+          account: accounts[0].id,
+          id: 'tx-1',
+          date: '2026-08-26',
+        }),
+      ];
+
+      const { container } = renderTransactions({
+        transactions,
+        showDateSeparators: true,
+        isAdding: true,
+        // @ts-expect-error test event object passed as addingDate
+        addingDate: { type: 'press' },
+      });
+
+      const dateInput = queryNewField(
+        container,
+        'date',
+        'input',
+      ) as HTMLInputElement;
+      expect(dateInput).toBeTruthy();
+      expect(dateInput.value).not.toBe('');
     });
   });
 });

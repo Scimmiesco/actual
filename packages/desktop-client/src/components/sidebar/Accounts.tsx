@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
+import type { MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { Button } from '@actual-app/components/button';
+import { SvgSwap } from '@actual-app/components/icons/v1';
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
 import type { AccountEntity } from '@actual-app/core/types/models';
@@ -12,6 +15,7 @@ import { useClosedAccounts } from '#hooks/useClosedAccounts';
 import { useLocalPref } from '#hooks/useLocalPref';
 import { useOffBudgetAccounts } from '#hooks/useOffBudgetAccounts';
 import { useOnBudgetAccounts } from '#hooks/useOnBudgetAccounts';
+import { useSyncedPref } from '#hooks/useSyncedPref';
 import { useUpdatedAccounts } from '#hooks/useUpdatedAccounts';
 import { useSelector } from '#redux';
 import * as bindings from '#spreadsheet/bindings';
@@ -36,6 +40,16 @@ export function Accounts() {
   const [showClosedAccounts, setShowClosedAccountsPref] = useLocalPref(
     'ui.showClosedAccounts',
   );
+  const [onBudgetBalanceViewPref, setOnBudgetBalanceViewPref] = useSyncedPref(
+    'sidebar.onbudget-balance-view',
+  );
+  const isOnBudgetCleared = onBudgetBalanceViewPref === 'cleared';
+
+  const onToggleOnBudgetBalanceView = (e: MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setOnBudgetBalanceViewPref(isOnBudgetCleared ? 'all' : 'cleared');
+  };
 
   function onDragChange(drag: { state: string }) {
     setIsDragging(drag.state === 'start');
@@ -93,7 +107,11 @@ export function Accounts() {
         <Account
           name={t('All accounts')}
           to="/accounts"
-          query={bindings.allAccountBalance()}
+          query={
+            isOnBudgetCleared
+              ? bindings.allAccountBalanceWithOnBudgetCleared()
+              : bindings.allAccountBalance()
+          }
           style={{ fontWeight, marginTop: 15 }}
           isExactPathMatch
           balanceTestId="sidebar-all-accounts-balance"
@@ -103,7 +121,11 @@ export function Accounts() {
           <Account
             name={t('On budget')}
             to="/accounts/onbudget"
-            query={bindings.onBudgetAccountBalance()}
+            query={
+              isOnBudgetCleared
+                ? bindings.onBudgetAccountBalanceCleared()
+                : bindings.onBudgetAccountBalance()
+            }
             style={{
               fontWeight,
               marginTop: 13,
@@ -111,6 +133,28 @@ export function Accounts() {
             }}
             titleAccount
             balanceTestId="sidebar-on-budget-balance"
+            action={
+              <Button
+                variant="bare"
+                aria-label={
+                  isOnBudgetCleared
+                    ? t('Switch to all transactions balance')
+                    : t('Switch to cleared balance only')
+                }
+                onClick={onToggleOnBudgetBalanceView}
+                style={({ isHovered }) => ({
+                  padding: 2,
+                  borderRadius: 3,
+                  color: isOnBudgetCleared
+                    ? theme.sidebarItemTextSelected
+                    : theme.sidebarItemText,
+                  opacity: isHovered ? 1 : 0.8,
+                })}
+                data-testid="toggle-sidebar-onbudget-balance-view"
+              >
+                <SvgSwap width={11} height={11} />
+              </Button>
+            }
           />
         )}
 
@@ -124,7 +168,11 @@ export function Accounts() {
             failed={isAccountFailedSync(account)}
             updated={updatedAccounts.includes(account.id)}
             to={getAccountPath(account)}
-            query={bindings.accountBalance(account.id)}
+            query={
+              isOnBudgetCleared
+                ? bindings.accountBalanceCleared(account.id)
+                : bindings.accountBalance(account.id)
+            }
             onDragChange={onDragChange}
             onDrop={onReorder}
             outerStyle={makeDropPadding(i)}

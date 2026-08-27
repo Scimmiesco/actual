@@ -24,6 +24,7 @@ const ALL_WIDGET_TYPES = allWidgetTypes(
   'custom-report',
   'sankey-card',
   'balance-forecast-card',
+  'scheduled-cash-flow-card',
   'age-of-money-card',
   'monte-carlo-card',
 );

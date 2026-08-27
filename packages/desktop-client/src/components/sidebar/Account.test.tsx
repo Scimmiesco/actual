@@ -118,4 +118,25 @@ describe('sidebar Account context menu', () => {
     expect(store.getState().contextMenu.isOpen).toBe(true);
     expect(contextMenuItemNames()).toEqual(['account-rename', 'account-close']);
   });
+
+  it('renders action button when provided', async () => {
+    const onActionClick = vi.fn();
+    await renderRow(
+      <Account
+        name="On budget"
+        to="/accounts/onbudget"
+        query={bindings.onBudgetAccountBalance()}
+        action={
+          <button data-testid="test-action" onClick={onActionClick}>
+            Toggle
+          </button>
+        }
+      />,
+    );
+
+    const actionButton = screen.getByTestId('test-action');
+    expect(actionButton).toBeInTheDocument();
+    fireEvent.click(actionButton);
+    expect(onActionClick).toHaveBeenCalledTimes(1);
+  });
 });

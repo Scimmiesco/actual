@@ -123,6 +123,9 @@ type TransactionListProps = Pick<
   category: CategoryEntity | undefined;
   isFiltered?: boolean;
   allowReorder?: boolean;
+  showDateSeparators?: boolean;
+  addingDate?: string | null;
+  onAddTransaction?: (date?: string) => void;
   onChange: (
     transaction: TransactionEntity,
     transactions: TransactionEntity[],
@@ -150,7 +153,9 @@ export function TransactionList({
   showGroup,
   showAccount,
   columnOrder,
+  showDateSeparators,
   isAdding,
+  addingDate,
   isNew,
   isMatched,
   isFiltered,
@@ -163,6 +168,7 @@ export function TransactionList({
   ascDesc,
   onChange,
   onRefetch,
+  onAddTransaction,
   onCloseAddTransaction,
   onCreatePayee,
   onApplyFilter,
@@ -527,10 +533,12 @@ export function TransactionList({
         showAccount={showAccount}
         showCategory
         showGroup={showGroup}
+        showDateSeparators={showDateSeparators}
         columnOrder={columnOrder}
         currentAccountId={account && account.id}
         currentCategoryId={category && category.id}
         isAdding={isAdding}
+        addingDate={addingDate}
         isNew={isNew}
         isMatched={isMatched}
         dateFormat={dateFormat}
@@ -539,6 +547,7 @@ export function TransactionList({
         onSave={onSave}
         onApplyRules={onApplyRules}
         onSplit={onSplit}
+        onAddTransaction={onAddTransaction}
         onCloseAddTransaction={onCloseAddTransaction}
         onAdd={onAdd}
         onAddSplit={onAddSplit}

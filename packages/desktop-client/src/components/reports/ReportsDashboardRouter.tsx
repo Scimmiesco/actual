@@ -1,3 +1,15 @@
+// DASHBOARD ROUTER — the default "/reports" and "/reports/:dashboardId" view
+// --------------------------------------------------------------------------
+// This component resolves *which dashboard page* to show. `useDashboardPages()`
+// is a React Query hook that fetches the list of saved dashboards (the data
+// lives in the local DB, synced like everything else in Actual). If no
+// `dashboardId` is present in the URL it redirects to the first dashboard —
+// the Angular equivalent would be a `CanActivate`/redirect or a default route
+// that resolves the first entity and navigates to its detail route.
+//
+// Once a valid `dashboardId` is known it renders <Overview dashboard={...}/>,
+// passing the resolved dashboard entity down as a prop (Angular would instead
+// inject a resolved `ActivatedRouteSnapshot.data` value into the component).
 import { useEffect } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { useParams } from 'react-router';

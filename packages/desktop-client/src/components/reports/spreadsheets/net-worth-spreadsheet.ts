@@ -1,3 +1,19 @@
+// NET WORTH SPREADSHEET — the data/compute layer for the Net Worth report
+// ----------------------------------------------------------------------
+// "Spreadsheet" is Actual's name for a reusable data-fetching + aggregation
+// module. This file is the Angular equivalent of a *service* (e.g.
+// `NetWorthService`) whose job is to talk to the data store and return a shaped
+// result. It deliberately contains no React/UI code.
+//
+// `createSpreadsheet(...)` is a factory: you pass in the UI parameters (date
+// range, accounts, filters, interval, locale, formatter) and it returns an
+// async function `(spreadsheet, setData) => void`. That returned function is
+// exactly what `useReport` invokes (see useReport.ts) — i.e. the "service method
+// call". Internally it:
+//   1. Converts rule conditions into DB filters via `send('make-filters-...')`.
+//   2. Queries transactions per account with the AQL query builder (`q(...)`).
+//   3. Calls `recalculate(...)` to roll per-account balances into the final
+//      per-interval series the graph consumes.
 import { send } from '@actual-app/core/platform/client/connection';
 import * as monthUtils from '@actual-app/core/shared/months';
 import { q } from '@actual-app/core/shared/query';
@@ -19,6 +35,9 @@ type Balance = {
   amount: number;
 };
 
+// Factory: given the report's parameters, returns the async data function that
+// `useReport` will call. Keeping params outside the inner function lets React
+// memoize the whole thing and only re-run it when inputs actually change.
 export function createSpreadsheet(
   start: string,
   end: string,
@@ -183,6 +202,11 @@ export function createSpreadsheet(
   };
 }
 
+// Pure transform: takes the raw per-account balances fetched above and computes
+// the final time series (one point per interval) plus summary numbers
+// (netWorth, totalChange, low/high). This is the "view model" mapper — the
+// Angular analogue of mapping a raw service response into the DTO the template
+// binds to. No I/O happens here, which keeps it easy to unit test.
 function recalculate(
   data: Array<{
     id: string;

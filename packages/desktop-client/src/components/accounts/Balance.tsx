@@ -1,9 +1,8 @@
-import React, { useRef } from 'react';
-import type { RefObject } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { Button } from '@actual-app/components/button';
-import { SvgArrowButtonRight1 } from '@actual-app/components/icons/v2';
+import { SvgSwap } from '@actual-app/components/icons/v1';
 import { Text } from '@actual-app/components/text';
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
@@ -12,7 +11,6 @@ import type { Query } from '@actual-app/core/shared/query';
 import { getScheduledAmount } from '@actual-app/core/shared/schedules';
 import { isPreviewId } from '@actual-app/core/shared/transactions';
 import type { AccountEntity } from '@actual-app/core/types/models';
-import { useHover } from 'usehooks-ts';
 
 import { FinancialText } from '#components/FinancialText';
 import { PrivacyFilter } from '#components/PrivacyFilter';
@@ -21,6 +19,7 @@ import { useCachedSchedules } from '#hooks/useCachedSchedules';
 import { useFormat } from '#hooks/useFormat';
 import { useSelectedItems } from '#hooks/useSelected';
 import { useSheetValue } from '#hooks/useSheetValue';
+import { useSyncedPref } from '#hooks/useSyncedPref';
 import type { Binding } from '#spreadsheet';
 
 type DetailedBalanceProps = {
@@ -147,12 +146,40 @@ function FilteredBalance({ filteredAmount }: FilteredBalanceProps) {
   );
 }
 
-type MoreBalancesProps = {
+type BalancesProps = {
   balanceQuery: { name: `balance-query-${string}`; query: Query };
+  showExtraBalances?: boolean;
+  onToggleExtraBalances?: () => void;
+  account?: AccountEntity;
+  isFiltered: boolean;
+  filteredAmount?: number | null;
 };
 
-function MoreBalances({ balanceQuery }: MoreBalancesProps) {
+export function Balances({
+  balanceQuery,
+  account,
+  isFiltered,
+  filteredAmount,
+}: BalancesProps) {
   const { t } = useTranslation();
+  const selectedItems = useSelectedItems();
+
+  const [primaryBalanceViewPref, setPrimaryBalanceViewPref] = useSyncedPref(
+    `primary-balance-view-${account?.id || 'all-accounts'}` as `primary-balance-view-${string}`,
+  );
+  const [primaryView, setPrimaryView] = useState<'uncleared' | 'cleared'>(
+    primaryBalanceViewPref === 'cleared' ? 'cleared' : 'uncleared',
+  );
+
+  useEffect(() => {
+    if (primaryBalanceViewPref) {
+      setPrimaryView(
+        primaryBalanceViewPref === 'cleared' ? 'cleared' : 'uncleared',
+      );
+    }
+  }, [primaryBalanceViewPref]);
+
+  const isUnclearedPrimary = primaryView === 'uncleared';
 
   const cleared = useSheetValue<'balance', `balance-query-${string}-cleared`>({
     name: (balanceQuery.name + '-cleared') as `balance-query-${string}-cleared`,
@@ -167,34 +194,21 @@ function MoreBalances({ balanceQuery }: MoreBalancesProps) {
     query: balanceQuery.query.filter({ cleared: false }),
   });
 
-  return (
-    <>
-      <DetailedBalance name={t('Cleared total:')} balance={cleared ?? 0} />
-      <DetailedBalance name={t('Uncleared total:')} balance={uncleared ?? 0} />
-    </>
-  );
-}
+  const primaryBinding = {
+    name: `${balanceQuery.name}-${isUnclearedPrimary ? 'uncleared' : 'cleared'}`,
+    query: balanceQuery.query.filter({ cleared: !isUnclearedPrimary }),
+    value: 0,
+  } as unknown as Binding<'balance', `balance-query-${string}`>;
 
-type BalancesProps = {
-  balanceQuery: { name: `balance-query-${string}`; query: Query };
-  showExtraBalances: boolean;
-  onToggleExtraBalances: () => void;
-  account?: AccountEntity;
-  isFiltered: boolean;
-  filteredAmount?: number | null;
-};
+  const primaryLabel = isUnclearedPrimary
+    ? t('Uncleared total')
+    : t('Cleared total');
 
-export function Balances({
-  balanceQuery,
-  showExtraBalances,
-  onToggleExtraBalances,
-  account,
-  isFiltered,
-  filteredAmount,
-}: BalancesProps) {
-  const selectedItems = useSelectedItems();
-  const buttonRef = useRef<HTMLButtonElement>(null);
-  const isButtonHovered = useHover(buttonRef as RefObject<HTMLButtonElement>);
+  const onTogglePrimaryBalance = () => {
+    const next = primaryView === 'uncleared' ? 'cleared' : 'uncleared';
+    setPrimaryView(next);
+    setPrimaryBalanceViewPref(next);
+  };
 
   return (
     <View
@@ -207,58 +221,89 @@ export function Balances({
         gap: 10,
       }}
     >
-      <Button
-        ref={buttonRef}
-        data-testid="account-balance"
-        variant="bare"
-        onPress={onToggleExtraBalances}
+      <View
         style={{
-          paddingTop: 1,
-          paddingBottom: 1,
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 2,
         }}
       >
-        <CellValue
-          binding={
-            { ...balanceQuery, value: 0 } as Binding<
-              'balance',
-              `balance-query-${string}`
-            >
+        <Button
+          data-testid="account-balance"
+          variant="bare"
+          aria-label={
+            isUnclearedPrimary
+              ? t('Switch to cleared balance')
+              : t('Switch to uncleared balance')
           }
-          type="financial"
-        >
-          {props => (
-            <CellValueText
-              {...props}
-              style={{
-                fontSize: 22,
-                fontWeight: 400,
-                color:
-                  props.value < 0
-                    ? theme.numberNegative
-                    : props.value > 0
-                      ? theme.numberPositive
-                      : theme.pageTextSubdued,
-              }}
-            />
-          )}
-        </CellValue>
-
-        <SvgArrowButtonRight1
+          onPress={onTogglePrimaryBalance}
           style={{
-            width: 10,
-            height: 10,
-            marginLeft: 10,
-            color: theme.pillText,
-            transform: showExtraBalances ? 'rotateZ(180deg)' : 'rotateZ(0)',
-            opacity:
-              isButtonHovered || selectedItems.size > 0 || showExtraBalances
-                ? 1
-                : 0,
+            paddingTop: 1,
+            paddingBottom: 1,
+            flexDirection: 'row',
+            alignItems: 'center',
           }}
-        />
-      </Button>
+        >
+          <View style={{ flexDirection: 'column', alignItems: 'flex-start' }}>
+            <Text
+              style={{
+                fontSize: 10,
+                fontWeight: 600,
+                textTransform: 'uppercase',
+                color: theme.pageTextSubdued,
+                letterSpacing: 0.5,
+                marginBottom: -2,
+              }}
+            >
+              {primaryLabel}
+            </Text>
+            <CellValue binding={primaryBinding} type="financial">
+              {props => (
+                <CellValueText
+                  {...props}
+                  style={{
+                    fontSize: 22,
+                    fontWeight: 400,
+                    color:
+                      props.value < 0
+                        ? theme.numberNegative
+                        : props.value > 0
+                          ? theme.numberPositive
+                          : theme.pageTextSubdued,
+                  }}
+                />
+              )}
+            </CellValue>
+          </View>
+        </Button>
 
-      {showExtraBalances && <MoreBalances balanceQuery={balanceQuery} />}
+        <Button
+          variant="bare"
+          aria-label={
+            isUnclearedPrimary
+              ? t('Switch to cleared balance')
+              : t('Switch to uncleared balance')
+          }
+          onPress={onTogglePrimaryBalance}
+          style={{
+            padding: 4,
+            borderRadius: 4,
+            color: theme.pageTextSubdued,
+          }}
+          data-testid="toggle-balance-view"
+        >
+          <SvgSwap width={14} height={14} />
+        </Button>
+      </View>
+
+      {isUnclearedPrimary ? (
+        <DetailedBalance name={t('Cleared total:')} balance={cleared ?? 0} />
+      ) : (
+        <DetailedBalance
+          name={t('Uncleared total:')}
+          balance={uncleared ?? 0}
+        />
+      )}
 
       {selectedItems.size > 0 && (
         <SelectedBalance selectedItems={selectedItems} account={account} />

@@ -1,14 +1,15 @@
 import React from 'react';
 
+import type { Query } from '@actual-app/core/shared/query';
 import type { ScheduleEntity } from '@actual-app/core/types/models';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 
 import { useCachedSchedules } from '#hooks/useCachedSchedules';
 import { useSelectedItems } from '#hooks/useSelected';
 import { useSheetValue } from '#hooks/useSheetValue';
 import { TestProviders } from '#mocks';
 
-import { SelectedBalance } from './Balance';
+import { Balances, SelectedBalance } from './Balance';
 
 vi.mock('#hooks/useSelected', () => ({
   useSelectedItems: vi.fn(),
@@ -132,5 +133,129 @@ describe('SelectedBalance – preview (scheduled) transactions', () => {
     );
 
     expect(screen.getByText('-100.00')).toBeInTheDocument();
+  });
+});
+
+describe('Balances – header visualization', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(useCachedSchedules).mockReturnValue(mockedSchedules([]));
+    vi.mocked(useSelectedItems).mockReturnValue(new Set());
+  });
+
+  test('renders Uncleared total as primary view by default and Cleared total as secondary', () => {
+    vi.mocked(useSheetValue).mockImplementation((binding: unknown) => {
+      const name =
+        typeof binding === 'string'
+          ? binding
+          : (binding as { name?: string })?.name || '';
+      if (name.includes('cleared') && !name.includes('uncleared')) {
+        return 120000;
+      }
+      if (name.includes('uncleared')) {
+        return -15000;
+      }
+      return 105000;
+    });
+
+    render(
+      <TestProviders>
+        <Balances
+          balanceQuery={{
+            name: 'balance-query-acct-1',
+            query: {
+              filter: vi.fn().mockReturnThis(),
+            } as unknown as Query,
+          }}
+          showExtraBalances={false}
+          onToggleExtraBalances={vi.fn()}
+          isFiltered={false}
+        />
+      </TestProviders>,
+    );
+
+    expect(screen.getByText('Uncleared total')).toBeInTheDocument();
+    expect(screen.getByText('Cleared total:')).toBeInTheDocument();
+    expect(screen.getByTestId('toggle-balance-view')).toBeInTheDocument();
+  });
+
+  test('toggles primary balance view to Cleared total when swap button is clicked', async () => {
+    vi.mocked(useSheetValue).mockImplementation((binding: unknown) => {
+      const name =
+        typeof binding === 'string'
+          ? binding
+          : (binding as { name?: string })?.name || '';
+      if (name.includes('cleared') && !name.includes('uncleared')) {
+        return 120000;
+      }
+      if (name.includes('uncleared')) {
+        return -15000;
+      }
+      return 105000;
+    });
+
+    render(
+      <TestProviders>
+        <Balances
+          balanceQuery={{
+            name: 'balance-query-acct-1',
+            query: {
+              filter: vi.fn().mockReturnThis(),
+            } as unknown as Query,
+          }}
+          showExtraBalances={false}
+          onToggleExtraBalances={vi.fn()}
+          isFiltered={false}
+        />
+      </TestProviders>,
+    );
+
+    expect(screen.getByText('Uncleared total')).toBeInTheDocument();
+    const swapButton = screen.getByTestId('toggle-balance-view');
+    fireEvent.click(swapButton);
+
+    await waitFor(() => {
+      expect(screen.getByText('Cleared total')).toBeInTheDocument();
+    });
+    expect(screen.getByText('Uncleared total:')).toBeInTheDocument();
+  });
+
+  test('toggles primary balance view when main balance button is clicked', async () => {
+    vi.mocked(useSheetValue).mockImplementation((binding: unknown) => {
+      const name =
+        typeof binding === 'string'
+          ? binding
+          : (binding as { name?: string })?.name || '';
+      if (name.includes('cleared') && !name.includes('uncleared')) {
+        return 120000;
+      }
+      if (name.includes('uncleared')) {
+        return -15000;
+      }
+      return 105000;
+    });
+
+    render(
+      <TestProviders>
+        <Balances
+          balanceQuery={{
+            name: 'balance-query-acct-1',
+            query: {
+              filter: vi.fn().mockReturnThis(),
+            } as unknown as Query,
+          }}
+          isFiltered={false}
+        />
+      </TestProviders>,
+    );
+
+    expect(screen.getByText('Uncleared total')).toBeInTheDocument();
+    const balanceButton = screen.getByTestId('account-balance');
+    fireEvent.click(balanceButton);
+
+    await waitFor(() => {
+      expect(screen.getByText('Cleared total')).toBeInTheDocument();
+    });
+    expect(screen.getByText('Uncleared total:')).toBeInTheDocument();
   });
 });

@@ -175,7 +175,7 @@ export function makeTemporaryTransactions(
   return [
     {
       id: 'temp',
-      date: lastDate || currentDay(),
+      date: typeof lastDate === 'string' && lastDate ? lastDate : currentDay(),
       // TODO: consider making this default to an empty string
       account: (currentAccountId || null) as string,
       category: currentCategoryId || undefined,

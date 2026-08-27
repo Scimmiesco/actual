@@ -1,3 +1,14 @@
+// NET WORTH GRAPH — a pure presentational component
+// ------------------------------------------------
+// This component only *renders* data it is handed via props; it performs no
+// data fetching and holds no report configuration. In Angular terms it is a
+// "dumb"/presentational component driven entirely by `@Input()`s
+// (`graphData`, `accounts`, `interval`, `mode`). The actual charting is done by
+// the Recharts library (AreaChart). Two tooltip renderers (TrendTooltip /
+// StackedTooltip) act like small inline templates switched on `mode`. Keeping
+// all data logic in the spreadsheet and all visuals here is the same
+// separation you'd aim for with a smart-container / dumb-presenter split in
+// Angular.
 // @ts-strict-ignore
 import React, { useId, useMemo, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';

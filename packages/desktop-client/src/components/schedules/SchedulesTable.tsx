@@ -1,16 +1,25 @@
 // @ts-strict-ignore
-import React, { useMemo, useRef, useState } from 'react';
-import type { CSSProperties } from 'react';
+import { useMemo, useRef, useState } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 
 import { Button } from '@actual-app/components/button';
-import { SvgDotsHorizontalTriple } from '@actual-app/components/icons/v1';
+import {
+  SvgArrowDown,
+  SvgArrowUp,
+  SvgDotsHorizontalTriple,
+} from '@actual-app/components/icons/v1';
 import { SvgCheck } from '@actual-app/components/icons/v2';
 import { styles } from '@actual-app/components/styles';
 import { Text } from '@actual-app/components/text';
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
-import { format as monthUtilFormat } from '@actual-app/core/shared/months';
+import { send } from '@actual-app/core/platform/client/connection';
+import {
+  currentDay as monthUtilCurrentDay,
+  differenceInCalendarDays as monthUtilDifferenceInCalendarDays,
+  format as monthUtilFormat,
+} from '@actual-app/core/shared/months';
 import { getNormalisedString } from '@actual-app/core/shared/normalisation';
 import { getScheduledAmount } from '@actual-app/core/shared/schedules';
 import type { ScheduleStatuses } from '@actual-app/core/shared/schedules';
@@ -20,7 +29,9 @@ import { FinancialText } from '#components/FinancialText';
 import { PrivacyFilter } from '#components/PrivacyFilter';
 import { Cell, Field, Row, Table, TableHeader } from '#components/table';
 import { DisplayId } from '#components/util/DisplayId';
+import { GenericInput } from '#components/util/GenericInput';
 import { useAccounts } from '#hooks/useAccounts';
+import { useCategories } from '#hooks/useCategories';
 import { useContextMenu } from '#hooks/useContextMenu';
 import { useDateFormat } from '#hooks/useDateFormat';
 import { useFormat } from '#hooks/useFormat';
@@ -53,6 +64,18 @@ type SchedulesTableProps = {
 type CompletedScheduleItem = { id: 'show-completed' };
 type SchedulesTableItem = ScheduleEntity | CompletedScheduleItem;
 
+type SortKey =
+  | 'name'
+  | 'payee'
+  | 'account'
+  | 'category'
+  | 'date'
+  | 'days'
+  | 'status'
+  | 'amount';
+type SortDirection = 'asc' | 'desc';
+type SortState = { key: SortKey; direction: SortDirection };
+
 export type ScheduleItemAction =
   | 'post-transaction'
   | 'post-transaction-today'
@@ -62,6 +85,82 @@ export type ScheduleItemAction =
   | 'delete';
 
 export const ROW_HEIGHT = 43;
+
+function getDaysUntil(date: string | null) {
+  return date == null
+    ? null
+    : monthUtilDifferenceInCalendarDays(date, monthUtilCurrentDay());
+}
+
+function ScheduleDaysCell({ date }: { date: string | null }) {
+  const days = getDaysUntil(date);
+
+  if (days == null) {
+    return null;
+  }
+  if (days === 0) {
+    return <Trans>Today</Trans>;
+  }
+  if (days < 0) {
+    return (
+      <Trans count={Math.abs(days)}>
+        {{ count: Math.abs(days) }} days overdue
+      </Trans>
+    );
+  }
+  return <Trans count={days}>{{ count: days }} days</Trans>;
+}
+
+function getScheduleCategory(schedule: ScheduleEntity) {
+  const action = schedule._actions?.find(
+    action => action.op === 'set' && action.field === 'category',
+  );
+  return action?.value ? String(action.value) : '';
+}
+
+function SortableHeader({
+  label,
+  width,
+  sort,
+  sortKey,
+  onSort,
+  style,
+}: {
+  label: ReactNode;
+  width: CSSProperties['width'];
+  sort: SortState | null;
+  sortKey: SortKey;
+  onSort: (key: SortKey) => void;
+  style?: CSSProperties;
+}) {
+  const isSorted = sort?.key === sortKey;
+
+  return (
+    <Field
+      width={width}
+      truncate={false}
+      onClick={() => onSort(sortKey)}
+      aria-sort={
+        isSorted
+          ? sort.direction === 'asc'
+            ? 'ascending'
+            : 'descending'
+          : 'none'
+      }
+      style={{ cursor: 'pointer', ...style }}
+    >
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+        {label}
+        {isSorted &&
+          (sort.direction === 'asc' ? (
+            <SvgArrowUp width={10} height={10} />
+          ) : (
+            <SvgArrowDown width={10} height={10} />
+          ))}
+      </View>
+    </Field>
+  );
+}
 
 export function ScheduleAmountCell({
   amount,
@@ -153,13 +252,19 @@ function ScheduleRow({
   minimal,
   statuses,
   dateFormat,
+  onCategoryChange,
 }: {
   schedule: ScheduleEntity;
   dateFormat: string;
 } & Pick<
   SchedulesTableProps,
   'onSelect' | 'onAction' | 'minimal' | 'statuses'
->) {
+> & {
+    onCategoryChange: (
+      schedule: ScheduleEntity,
+      categoryId: string | null,
+    ) => Promise<void>;
+  }) {
   const { t } = useTranslation();
 
   const rowRef = useRef(null);
@@ -238,10 +343,34 @@ function ScheduleRow({
       <Field width="flex" name="account">
         <DisplayId type="accounts" id={schedule._account} />
       </Field>
+      <Field
+        width="flex"
+        name="category"
+        truncate={false}
+        onClick={event => event.stopPropagation()}
+      >
+        <GenericInput
+          type="id"
+          field="category"
+          value={getScheduleCategory(schedule)}
+          onChange={category =>
+            void onCategoryChange(schedule, category || null)
+          }
+          inputStyle={{
+            border: 'none',
+            backgroundColor: 'transparent',
+            padding: '0 5px',
+            width: '100%',
+          }}
+        />
+      </Field>
       <Field width={110} name="date">
         {schedule.next_date
           ? monthUtilFormat(schedule.next_date, dateFormat)
           : null}
+      </Field>
+      <Field width={70} name="days" style={{ textAlign: 'center' }}>
+        <ScheduleDaysCell date={schedule.next_date} />
       </Field>
       <Field width={120} name="status" style={{ alignItems: 'flex-start' }}>
         <StatusBadge status={statuses.get(schedule.id)} />
@@ -308,46 +437,143 @@ export function SchedulesTable({
 
   const dateFormat = useDateFormat() || 'MM/dd/yyyy';
   const [showCompleted, setShowCompleted] = useState(false);
+  const [sort, setSort] = useState<SortState | null>(null);
 
   const { data: payees } = usePayees();
   const { data: accounts = [] } = useAccounts();
+  const { data: { list: categories = [] } = {} } = useCategories();
 
   const filteredSchedules = useMemo(() => {
-    if (!filter) {
-      return schedules;
-    }
     const filterIncludes = (str: string) =>
       str
         ? getNormalisedString(str).includes(getNormalisedString(filter)) ||
           getNormalisedString(filter).includes(getNormalisedString(str))
         : false;
 
-    return schedules.filter(schedule => {
-      const payee = payees.find(p => schedule._payee === p.id);
-      const account = accounts.find(a => schedule._account === a.id);
-      const amount = getScheduledAmount(schedule._amount);
-      let amountStr = '';
-      if (schedule._amountOp === 'isbetween') {
-        amountStr = '±';
-      } else if (schedule._amountOp === 'isapprox') {
-        amountStr = '~';
-      }
-      amountStr +=
-        (amount > 0 ? '+' : '') + format(Math.abs(amount || 0), 'financial');
-      const dateStr = schedule.next_date
-        ? monthUtilFormat(schedule.next_date, dateFormat)
-        : null;
+    const matchingSchedules = filter
+      ? schedules.filter(schedule => {
+          const payee = payees.find(p => schedule._payee === p.id);
+          const account = accounts.find(a => schedule._account === a.id);
+          const category = categories.find(
+            c => c.id === getScheduleCategory(schedule),
+          );
+          const amount = getScheduledAmount(schedule._amount);
+          let amountStr = '';
+          if (schedule._amountOp === 'isbetween') {
+            amountStr = '±';
+          } else if (schedule._amountOp === 'isapprox') {
+            amountStr = '~';
+          }
+          amountStr +=
+            (amount > 0 ? '+' : '') +
+            format(Math.abs(amount || 0), 'financial');
+          const dateStr = schedule.next_date
+            ? monthUtilFormat(schedule.next_date, dateFormat)
+            : null;
 
-      return (
-        filterIncludes(schedule.name) ||
-        filterIncludes(payee && payee.name) ||
-        filterIncludes(account && account.name) ||
-        filterIncludes(amountStr) ||
-        filterIncludes(statuses.get(schedule.id)) ||
-        filterIncludes(dateStr)
-      );
+          return (
+            filterIncludes(schedule.name) ||
+            filterIncludes(payee && payee.name) ||
+            filterIncludes(account && account.name) ||
+            filterIncludes(category && category.name) ||
+            filterIncludes(amountStr) ||
+            filterIncludes(statuses.get(schedule.id)) ||
+            filterIncludes(dateStr)
+          );
+        })
+      : schedules;
+
+    if (!sort) {
+      return matchingSchedules;
+    }
+
+    const payeeNames = new Map(payees.map(payee => [payee.id, payee.name]));
+    const accountNames = new Map(
+      accounts.map(account => [account.id, account.name]),
+    );
+    const categoryNames = new Map(
+      categories.map(category => [category.id, category.name]),
+    );
+
+    function getValue(schedule: ScheduleEntity) {
+      switch (sort.key) {
+        case 'name':
+          return getNormalisedString(schedule.name ?? '');
+        case 'payee':
+          return getNormalisedString(payeeNames.get(schedule._payee) ?? '');
+        case 'account':
+          return getNormalisedString(accountNames.get(schedule._account) ?? '');
+        case 'category':
+          return getNormalisedString(
+            categoryNames.get(getScheduleCategory(schedule)) ?? '',
+          );
+        case 'date':
+          return schedule.next_date ?? '';
+        case 'days':
+          return getDaysUntil(schedule.next_date) ?? Number.MAX_SAFE_INTEGER;
+        case 'status':
+          return statuses.get(schedule.id) ?? '';
+        case 'amount':
+          return getScheduledAmount(schedule._amount);
+        default:
+          return '';
+      }
+    }
+
+    return [...matchingSchedules].sort((a, b) => {
+      const aValue = getValue(a);
+      const bValue = getValue(b);
+      const comparison =
+        typeof aValue === 'number' && typeof bValue === 'number'
+          ? aValue - bValue
+          : String(aValue).localeCompare(String(bValue));
+      return sort.direction === 'asc' ? comparison : -comparison;
     });
-  }, [payees, accounts, schedules, filter, statuses, format, dateFormat]);
+  }, [
+    payees,
+    accounts,
+    categories,
+    schedules,
+    filter,
+    statuses,
+    format,
+    dateFormat,
+    sort,
+  ]);
+
+  async function onCategoryChange(
+    schedule: ScheduleEntity,
+    categoryId: string | null,
+  ) {
+    if (!schedule.rule) {
+      return;
+    }
+
+    const rule = await send('rule-get', { id: schedule.rule });
+    if (!rule) {
+      return;
+    }
+
+    const actions = rule.actions.filter(
+      action => !(action.op === 'set' && action.field === 'category'),
+    );
+    if (categoryId) {
+      actions.push({ op: 'set', field: 'category', value: categoryId });
+    }
+
+    await send('rule-update', { ...rule, actions });
+  }
+
+  function onSort(key: SortKey) {
+    setSort(current =>
+      current?.key === key
+        ? {
+            key,
+            direction: current.direction === 'asc' ? 'desc' : 'asc',
+          }
+        : { key, direction: 'asc' },
+    );
+  }
 
   const items: readonly SchedulesTableItem[] = useMemo(() => {
     const unCompletedSchedules = filteredSchedules.filter(s => !s.completed);
@@ -396,6 +622,7 @@ export function SchedulesTable({
       <ScheduleRow
         schedule={item as ScheduleEntity}
         {...{ statuses, dateFormat, onSelect, onAction, minimal }}
+        onCategoryChange={onCategoryChange}
       />
     );
   }
@@ -403,24 +630,64 @@ export function SchedulesTable({
   return (
     <View style={{ ...styles.tableContainer, ...tableStyle }}>
       <TableHeader height={ROW_HEIGHT} inset={15}>
-        <Field width="flex">
-          <Trans>Name</Trans>
-        </Field>
-        <Field width="flex">
-          <Trans>Payee</Trans>
-        </Field>
-        <Field width="flex">
-          <Trans>Account</Trans>
-        </Field>
-        <Field width={110}>
-          <Trans>Next date</Trans>
-        </Field>
-        <Field width={120}>
-          <Trans>Status</Trans>
-        </Field>
-        <Field width={100} style={{ textAlign: 'right' }}>
-          <Trans>Amount</Trans>
-        </Field>
+        <SortableHeader
+          width="flex"
+          label={<Trans>Name</Trans>}
+          sort={sort}
+          sortKey="name"
+          onSort={onSort}
+        />
+        <SortableHeader
+          width="flex"
+          label={<Trans>Payee</Trans>}
+          sort={sort}
+          sortKey="payee"
+          onSort={onSort}
+        />
+        <SortableHeader
+          width="flex"
+          label={<Trans>Account</Trans>}
+          sort={sort}
+          sortKey="account"
+          onSort={onSort}
+        />
+        <SortableHeader
+          width="flex"
+          label={<Trans>Category</Trans>}
+          sort={sort}
+          sortKey="category"
+          onSort={onSort}
+        />
+        <SortableHeader
+          width={110}
+          label={<Trans>Next date</Trans>}
+          sort={sort}
+          sortKey="date"
+          onSort={onSort}
+        />
+        <SortableHeader
+          width={70}
+          label={<Trans>Days</Trans>}
+          sort={sort}
+          sortKey="days"
+          onSort={onSort}
+          style={{ textAlign: 'center' }}
+        />
+        <SortableHeader
+          width={120}
+          label={<Trans>Status</Trans>}
+          sort={sort}
+          sortKey="status"
+          onSort={onSort}
+        />
+        <SortableHeader
+          width={100}
+          label={<Trans>Amount</Trans>}
+          sort={sort}
+          sortKey="amount"
+          onSort={onSort}
+          style={{ textAlign: 'right' }}
+        />
         {!minimal && (
           <Field width={80} style={{ textAlign: 'center' }}>
             <Trans>Recurring</Trans>

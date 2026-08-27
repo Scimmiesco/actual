@@ -1,6 +1,6 @@
 // @ts-strict-ignore
 import React, { useRef, useState } from 'react';
-import type { CSSProperties } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { AlignedText } from '@actual-app/components/aligned-text';
@@ -65,6 +65,7 @@ type AccountProps<FieldName extends SheetFields<'account'>> = {
   titleAccount?: boolean;
   isExactPathMatch?: boolean;
   balanceTestId?: string;
+  action?: ReactNode;
 };
 
 export function Account<FieldName extends SheetFields<'account'>>({
@@ -83,6 +84,7 @@ export function Account<FieldName extends SheetFields<'account'>>({
   titleAccount,
   isExactPathMatch,
   balanceTestId,
+  action,
 }: AccountProps<FieldName>) {
   const isTestEnv = useIsTestEnv();
   const { t } = useTranslation();
@@ -255,6 +257,26 @@ export function Account<FieldName extends SheetFields<'account'>>({
                       defaultValue={name}
                     />
                   </InitialFocus>
+                ) : action ? (
+                  <View
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 4,
+                      minWidth: 0,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {name}
+                    </Text>
+                    {action}
+                  </View>
                 ) : (
                   name
                 )

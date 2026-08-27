@@ -58,6 +58,18 @@ export function allAccountBalance() {
   } satisfies Binding<'account', 'accounts-balance'>;
 }
 
+export function allAccountBalanceWithOnBudgetCleared() {
+  return {
+    query: q('transactions')
+      .filter({
+        'account.closed': false,
+        $or: [{ 'account.offbudget': true }, { cleared: true }],
+      })
+      .calculate({ $sum: '$amount' }),
+    name: 'accounts-balance-onbudget-cleared',
+  } satisfies Binding<'account', 'accounts-balance-onbudget-cleared'>;
+}
+
 export function onBudgetAccountBalance() {
   return {
     name: `onbudget-accounts-balance`,
@@ -65,6 +77,19 @@ export function onBudgetAccountBalance() {
       .filter({ 'account.offbudget': false, 'account.closed': false })
       .calculate({ $sum: '$amount' }),
   } satisfies Binding<'account', 'onbudget-accounts-balance'>;
+}
+
+export function onBudgetAccountBalanceCleared() {
+  return {
+    name: `onbudget-accounts-balance-cleared`,
+    query: q('transactions')
+      .filter({
+        'account.offbudget': false,
+        'account.closed': false,
+        cleared: true,
+      })
+      .calculate({ $sum: '$amount' }),
+  } satisfies Binding<'account', 'onbudget-accounts-balance-cleared'>;
 }
 
 export function offBudgetAccountBalance() {

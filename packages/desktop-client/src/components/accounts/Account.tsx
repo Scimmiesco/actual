@@ -226,6 +226,8 @@ type AccountInternalProps = {
   showReconciled: boolean;
   setShowReconciled: (newValue: boolean) => void;
   showGroup: boolean;
+  showDateSeparators?: boolean;
+  setShowDateSeparators: (newValue: boolean) => void;
   showExtraBalances?: boolean;
   setShowExtraBalances: (newValue: boolean) => void;
   transactionColumns: TransactionTableColumn[];
@@ -280,8 +282,10 @@ type AccountInternalState = {
   showCleared?: boolean | undefined;
   prevShowCleared?: boolean | undefined;
   showReconciled: boolean;
+  showDateSeparators?: boolean | undefined;
   nameError: string;
   isAdding: boolean;
+  addingDate?: string | null;
   modalShowing?: boolean;
   sort: {
     ascDesc: 'asc' | 'desc';
@@ -330,8 +334,10 @@ class AccountInternal extends PureComponent<
       balances: null,
       showCleared: props.showCleared,
       showReconciled: props.showReconciled,
+      showDateSeparators: props.showDateSeparators,
       nameError: '',
       isAdding: false,
+      addingDate: null,
       sort: null,
       filteredAmount: null,
     };
@@ -576,6 +582,7 @@ class AccountInternal extends PureComponent<
           balances: null,
           showCleared: nextProps.showCleared,
           showReconciled: nextProps.showReconciled,
+          showDateSeparators: nextProps.showDateSeparators,
           reconcileAmount: null,
         },
         () => {
@@ -781,8 +788,11 @@ class AccountInternal extends PureComponent<
     }
   };
 
-  onAddTransaction = () => {
-    this.setState({ isAdding: true });
+  onAddTransaction = (date?: unknown) => {
+    this.setState({
+      isAdding: true,
+      addingDate: typeof date === 'string' ? date : null,
+    });
   };
 
   onSaveName = (name: string) => {
@@ -819,7 +829,8 @@ class AccountInternal extends PureComponent<
       | 'remove-sorting'
       | 'toggle-reconciled'
       | 'toggle-net-worth-chart'
-      | 'manage-columns',
+      | 'manage-columns'
+      | 'toggle-date-separators',
   ) => {
     const accountId = this.props.accountId!;
     const account = this.props.accounts.find(
@@ -897,6 +908,15 @@ class AccountInternal extends PureComponent<
           this.props.setShowNetWorthChart(false);
         } else {
           this.props.setShowNetWorthChart(true);
+        }
+        break;
+      case 'toggle-date-separators':
+        if (this.props.showDateSeparators) {
+          this.props.setShowDateSeparators(false);
+          this.setState({ showDateSeparators: false });
+        } else {
+          this.props.setShowDateSeparators(true);
+          this.setState({ showDateSeparators: true });
         }
         break;
       case 'manage-columns':
@@ -1855,6 +1875,11 @@ class AccountInternal extends PureComponent<
                 transactions={transactions}
                 showExtraBalances={showExtraBalances ?? false}
                 showReconciled={showReconciled ?? false}
+                showDateSeparators={
+                  this.state.showDateSeparators ??
+                  this.props.showDateSeparators ??
+                  false
+                }
                 showEmptyMessage={showEmptyMessage ?? false}
                 balanceQuery={balanceQuery}
                 filteredAmount={filteredAmount}
@@ -1919,6 +1944,11 @@ class AccountInternal extends PureComponent<
                   showReconciled={showReconciled}
                   showCleared={!!showCleared}
                   showGroup={this.props.showGroup}
+                  showDateSeparators={
+                    this.state.showDateSeparators ??
+                    this.props.showDateSeparators ??
+                    false
+                  }
                   showAccount={this.showAccountColumn()}
                   columnOrder={this.props.columnOrder}
                   allowReorder={
@@ -1928,6 +1958,7 @@ class AccountInternal extends PureComponent<
                     accountId !== 'uncategorized'
                   }
                   isAdding={this.state.isAdding}
+                  addingDate={this.state.addingDate}
                   isNew={this.isNew}
                   isMatched={this.isMatched}
                   isFiltered={transactionsFiltered}
@@ -1971,8 +2002,9 @@ class AccountInternal extends PureComponent<
                     this.onMakeAsNonSplitTransactions
                   }
                   onRefetch={this.refetchTransactions}
+                  onAddTransaction={this.onAddTransaction}
                   onCloseAddTransaction={() =>
-                    this.setState({ isAdding: false })
+                    this.setState({ isAdding: false, addingDate: null })
                   }
                   onCreatePayee={this.onCreatePayee}
                   onApplyFilter={this.onApplyFilter}
@@ -2048,6 +2080,9 @@ export function Account() {
   const [hideReconciled, setHideReconciled] = useSyncedPref(
     `hide-reconciled-${params.id}`,
   );
+  const [showDateSeparators, setShowDateSeparators] = useSyncedPref(
+    `show-date-separators-${params.id || 'all-accounts'}`,
+  );
   const [showExtraBalances, setShowExtraBalances] = useSyncedPref(
     `show-extra-balances-${params.id || 'all-accounts'}`,
   );
@@ -2108,6 +2143,8 @@ export function Account() {
             showCleared={showCleared}
             showReconciled={String(hideReconciled) !== 'true'}
             setShowReconciled={val => setHideReconciled(String(!val))}
+            showDateSeparators={String(showDateSeparators) === 'true'}
+            setShowDateSeparators={val => setShowDateSeparators(String(val))}
             showGroup={showGroup}
             showExtraBalances={String(showExtraBalances) === 'true'}
             setShowExtraBalances={extraBalances =>

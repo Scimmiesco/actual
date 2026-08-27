@@ -1,3 +1,20 @@
+// REPORTS ROUTER — the feature's "Routes" table
+// ----------------------------------------------
+// This is the closest thing the reports feature has to an Angular `RouterModule`
+// `Routes` array. Each <Route path=... element=...> entry maps a URL segment to
+// a report *page* component (e.g. /net-worth -> <NetWorth/>). The `:id` suffix
+// on most paths is the dashboard widget id that the page uses to load its saved
+// configuration — analogous to an Angular route `:id` parameter
+// (`/net-worth/:id`) resolved through a `Resolve`/route param.
+//
+// Feature flags gate some routes behind `useFeatureFlag(...)`, conditionally
+// registering them much like Angular would conditionally provide routes based on
+// an environment/config check.
+//
+// Every report page is wrapped in <ReportBoundary>, an ErrorBoundary that resets
+// when the URL changes. There is no direct Angular primitive for this, but it is
+// conceptually the same intent as a route-level error handler / `CanActivate`
+// guard fallback that catches a failed component render.
 import type { ReactNode } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 import { Route, Routes, useLocation } from 'react-router';
@@ -16,10 +33,14 @@ import { Formula } from './reports/Formula';
 import { MonteCarlo } from './reports/monte-carlo/MonteCarlo';
 import { NetWorth } from './reports/NetWorth';
 import { Sankey } from './reports/Sankey';
+import { ScheduledCashFlow } from './reports/ScheduledCashFlow';
 import { Spending } from './reports/Spending';
 import { Summary } from './reports/Summary';
 import { ReportsDashboardRouter } from './ReportsDashboardRouter';
 
+// Per-report error boundary. `resetKeys={[location.pathname]}` makes the
+// boundary "forget" a previous error and re-mount its child whenever the route
+// changes — so navigating between reports always starts from a clean state.
 function ReportBoundary({ children }: { children: ReactNode }) {
   const location = useLocation();
   return (
@@ -226,6 +247,22 @@ export function ReportRouter() {
           />
         </>
       )}
+      <Route
+        path="/scheduled-cash-flow"
+        element={
+          <ReportBoundary>
+            <ScheduledCashFlow />
+          </ReportBoundary>
+        }
+      />
+      <Route
+        path="/scheduled-cash-flow/:id"
+        element={
+          <ReportBoundary>
+            <ScheduledCashFlow />
+          </ReportBoundary>
+        }
+      />
       {monteCarloReportEnabled && (
         <>
           <Route
