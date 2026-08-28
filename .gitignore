@@ -115,4 +115,9 @@ storybook-static
 .actualrc
 .actualrc.yaml
 .actualrc.yml
-actual.config.js
+
+# Local sync cache & env files
+.actual-cache/
+.env
+*.env
+!.env.example

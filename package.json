@@ -68,6 +68,7 @@
     "prepare": "husky"
   },
   "devDependencies": {
+    "@actual-app/api": "workspace:*",
     "@monorepo-utils/workspaces-to-typescript-project-references": "^2.11.0",
     "@octokit/rest": "^22.0.1",
     "@types/node": "^22.20.1",
