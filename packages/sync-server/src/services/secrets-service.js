@@ -19,6 +19,8 @@ export const SecretName = {
   akahu_appToken: 'akahu_appToken',
   enablebanking_applicationId: 'enablebanking_applicationId',
   enablebanking_secretKey: 'enablebanking_secretKey',
+  mercadopago_accessToken: 'mercadopago_accessToken',
+  mercadopago_userId: 'mercadopago_userId',
 };
 
 function getSecretKey(name, fileId) {
