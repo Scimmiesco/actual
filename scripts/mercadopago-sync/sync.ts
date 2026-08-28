@@ -211,7 +211,8 @@ export async function runSync(
         );
       }
 
-      syncId = budgets[0].groupId || budgets[0].cloudFileId || budgets[0].id || '';
+      syncId =
+        budgets[0].groupId || budgets[0].cloudFileId || budgets[0].id || '';
       console.log(
         `ℹ️ ACTUAL_SYNC_ID não configurado. Utilizando automaticamente o orçamento "${budgets[0].name}" (Sync ID: ${syncId})`,
       );
