@@ -179,7 +179,9 @@ export async function runSync(
 
   // Conexão com o Actual Budget via @actual-app/api
   console.log('🚀 Inicializando @actual-app/api...');
-  const dataDir = config.dataDir || './.actual-cache';
+  const dataDir = path.resolve(config.dataDir || './.actual-cache');
+  fs.mkdirSync(dataDir, { recursive: true });
+
   const initConfig: Parameters<typeof actual.init>[0] =
     config.actualServerUrl && config.actualPassword
       ? {
@@ -193,12 +195,30 @@ export async function runSync(
   await actual.init(initConfig);
 
   try {
-    const activeSyncId = config.actualSyncId;
+    let syncId = config.actualSyncId;
 
-    if (activeSyncId) {
-      console.log(`📥 Baixando orçamento com Sync ID: ${activeSyncId}...`);
-      await actual.downloadBudget(activeSyncId);
+    if (!syncId) {
+      const budgets = (await actual.getBudgets()) as Array<{
+        groupId?: string;
+        cloudFileId?: string;
+        id?: string;
+        name: string;
+      }>;
+
+      if (!budgets || budgets.length === 0) {
+        throw new Error(
+          'Nenhum orçamento encontrado no servidor do Actual Budget. Configure o ACTUAL_SYNC_ID no .env.',
+        );
+      }
+
+      syncId = budgets[0].groupId || budgets[0].cloudFileId || budgets[0].id || '';
+      console.log(
+        `ℹ️ ACTUAL_SYNC_ID não configurado. Utilizando automaticamente o orçamento "${budgets[0].name}" (Sync ID: ${syncId})`,
+      );
     }
+
+    console.log(`📥 Carregando/Baixando orçamento (${syncId})...`);
+    await actual.downloadBudget(syncId);
 
     // Validação da conta destino
     const accounts = await actual.getAccounts();
@@ -207,16 +227,19 @@ export async function runSync(
     );
 
     if (!targetAccount) {
-      console.warn(
-        `⚠️ Atenção: A conta com ID "${config.actualAccountId}" não foi encontrada no orçamento. Continuando importação...`,
+      const accountsList = accounts
+        .map((a: { name: string; id: string }) => `  - ${a.name} (ID: ${a.id})`)
+        .join('\n');
+      throw new Error(
+        `A conta com ID "${config.actualAccountId}" não foi encontrada no orçamento.\nContas disponíveis:\n${accountsList}`,
       );
-    } else {
-      console.log(`🎯 Conta destino identificada: "${targetAccount.name}"`);
     }
+
+    console.log(`🎯 Conta destino identificada: "${targetAccount.name}"`);
 
     if (normalized.length > 0) {
       console.log(
-        `📥 Importando ${normalized.length} transações na conta ${config.actualAccountId}...`,
+        `📥 Importando ${normalized.length} transações na conta "${targetAccount.name}"...`,
       );
       const result = await actual.importTransactions(
         config.actualAccountId,
