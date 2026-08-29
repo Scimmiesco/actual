@@ -88,8 +88,8 @@ const post = (path: string) =>
 
 describe('app-mercadopago', () => {
   beforeEach(() => {
-    secretsService.set(SecretName.mercadopago_accessToken, null);
-    secretsService.set(SecretName.mercadopago_userId, null);
+    secretsService.reset(SecretName.mercadopago_accessToken);
+    secretsService.reset(SecretName.mercadopago_userId);
     vi.spyOn(console, 'log').mockImplementation(vi.fn());
     vi.spyOn(console, 'error').mockImplementation(vi.fn());
   });
@@ -229,11 +229,12 @@ describe('app-mercadopago', () => {
   });
 
   describe('POST /transactions', () => {
-    it('returns normalized transactions in BankSyncResponse format', async () => {
+    it('returns normalized transactions and live balance in BankSyncResponse format', async () => {
       secretsService.set(
         SecretName.mercadopago_accessToken,
         'APP_USR-valid-token',
       );
+      secretsService.set(SecretName.mercadopago_userId, '283066001');
 
       global.fetch = vi.fn().mockImplementation((url: string) => {
         if (url.includes('/v1/payments/search')) {
@@ -243,20 +244,35 @@ describe('app-mercadopago', () => {
             json: () => Promise.resolve(MOCK_PAYMENTS_PAGE),
           });
         }
+        if (url.includes('/balance')) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: () =>
+              Promise.resolve({
+                total_amount: 1543.21,
+                available_amount: 1543.21,
+                unavailable_amount: 0,
+              }),
+          });
+        }
         return Promise.resolve({ ok: false, status: 404 });
       });
 
       const res = await post('/transactions').send({
+        accountId: 'mp_account_checking',
         startDate: '2026-08-01',
       });
 
       expect(res.status).toBe(200);
       expect(res.body.status).toBe('ok');
       expect(res.body.data.transactions).toBeDefined();
+      expect(res.body.data.startingBalance).toBe(154321);
+      expect(res.body.data.balances[0].balanceAmount.amount).toBe('1543.21');
 
       const { all, booked } = res.body.data.transactions;
-      expect(all).toHaveLength(3);
-      expect(booked).toHaveLength(3);
+      expect(all).toHaveLength(2);
+      expect(booked).toHaveLength(2);
 
       // Check first transaction (Checking debit)
       expect(all[0]).toMatchObject({
@@ -267,18 +283,6 @@ describe('app-mercadopago', () => {
           currency: 'BRL',
         },
         debtorName: 'Supermercado Central LTDA',
-        booked: true,
-      });
-
-      // Check third transaction (Pot transfer)
-      expect(all[2]).toMatchObject({
-        transactionId: 'mp_103',
-        bookingDate: '2026-08-27',
-        transactionAmount: {
-          amount: '-50.00',
-          currency: 'BRL',
-        },
-        debtorName: 'Reserva: Reserva Emergência',
         booked: true,
       });
     });
@@ -312,4 +316,3 @@ describe('app-mercadopago', () => {
     });
   });
 });
-

@@ -316,6 +316,46 @@ async function downloadPluggyAiTransactions(
   return retVal;
 }
 
+async function downloadMercadoPagoTransactions(
+  acctId: AccountEntity['id'],
+  since: string,
+  fileId?: string,
+) {
+  const userToken = await asyncStorage.getItem('user-token');
+  if (!userToken) return;
+
+  logger.log('Pulling transactions from Mercado Pago');
+
+  const res = await post(
+    getServer().MERCADOPAGO_SERVER + '/transactions',
+    {
+      accountId: acctId,
+      startDate: since,
+    },
+    {
+      'X-ACTUAL-TOKEN': userToken,
+      ...(fileId ? { 'X-Actual-File-Id': fileId } : {}),
+    },
+    60000,
+  );
+
+  if (res.error_code) {
+    throw BankSyncError(res.error_type, res.error_code);
+  } else if ('error' in res) {
+    throw BankSyncError('Connection', res.error);
+  }
+
+  const singleRes = (res.data || res) as BankSyncResponse;
+  const retVal = {
+    transactions: singleRes.transactions.all,
+    accountBalance: singleRes.balances,
+    startingBalance: singleRes.startingBalance,
+  };
+
+  logger.log('Response:', retVal);
+  return retVal;
+}
+
 async function downloadAkahuTransactions(
   acctId: AccountEntity['id'],
   since: string,
@@ -1137,6 +1177,14 @@ async function processBankSyncDownload(
         currentBalance,
       );
       balanceToUse = Math.round(previousBalance);
+    } else if (acctRow.account_sync_source === 'mercadopago') {
+      const currentBalance = download.startingBalance;
+      const previousBalance = transactions.reduce(
+        (total, trans) =>
+          total - amountToInteger(trans.transactionAmount.amount),
+        currentBalance,
+      );
+      balanceToUse = Math.round(previousBalance);
     }
 
     const oldestTransaction = transactions[transactions.length - 1];
@@ -1194,6 +1242,41 @@ async function processBankSyncDownload(
 
     if (currentBalance != null) {
       await updateAccountBalance(id, currentBalance);
+
+      if (acctRow.account_sync_source === 'mercadopago') {
+        const sumRes = await db.first<{ total: number }>(
+          'SELECT SUM(amount) as total FROM v_transactions_internal WHERE account = ? AND tombstone = 0',
+          [id],
+        );
+        const actualBalance = Number(sumRes?.total ?? 0);
+        const diff = currentBalance - actualBalance;
+
+        if (diff !== 0) {
+          const startingTrans = await db.first<db.DbTransaction>(
+            'SELECT * FROM v_transactions_internal WHERE account = ? AND starting_balance_flag = 1 AND tombstone = 0 LIMIT 1',
+            [id],
+          );
+
+          if (startingTrans) {
+            await db.updateTransaction({
+              id: startingTrans.id,
+              amount: startingTrans.amount + diff,
+            });
+          } else {
+            const payee = await getStartingBalancePayee();
+            const oldestTransaction = await getAccountOldestTransaction(id);
+            await db.insertTransaction({
+              account: id,
+              amount: diff,
+              category: acctRow.offbudget === 0 ? payee.category : null,
+              payee: payee.id,
+              date: oldestTransaction?.date ?? monthUtils.currentDay(),
+              cleared: true,
+              starting_balance_flag: true,
+            });
+          }
+        }
+      }
     }
 
     return result;
@@ -1239,6 +1322,12 @@ export async function syncAccount(
     );
   } else if (acctRow.account_sync_source === 'enableBanking') {
     download = await downloadEnableBankingTransactions(acctId, syncStartDate);
+  } else if (acctRow.account_sync_source === 'mercadopago') {
+    download = await downloadMercadoPagoTransactions(
+      acctId,
+      syncStartDate,
+      fileId,
+    );
   } else {
     throw new Error(
       `Unrecognized bank-sync provider: ${acctRow.account_sync_source}`,

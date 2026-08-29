@@ -312,3 +312,43 @@ describe('bank sync handlers must not nest mutators', () => {
     expect(result.errors).toEqual([]);
   });
 });
+
+describe('mercadopago account handlers', () => {
+  it('links a Mercado Pago account and creates the bank entry', async () => {
+    vi.mocked(bankSync.syncAccount).mockResolvedValueOnce({
+      added: [],
+      updated: [],
+      updatedPreview: [],
+    });
+
+    const linkHandler = app.handlers['mercadopago-accounts-link'];
+    const res = await runMutator(() =>
+      linkHandler({
+        externalAccount: {
+          account_id: 'mp-acc-123',
+          name: 'Mercado Pago Principal',
+          balance: 15000,
+        },
+      }),
+    );
+    expect(res).toBe('ok');
+
+    const account = await db.first<db.DbAccount>(
+      'SELECT * FROM accounts WHERE account_id = ?',
+      ['mp-acc-123'],
+    );
+    expect(account).toMatchObject({
+      name: 'Mercado Pago Principal',
+      account_id: 'mp-acc-123',
+      account_sync_source: 'mercadopago',
+    });
+
+    const bank = await db.first<db.DbBank>('SELECT * FROM banks WHERE id = ?', [
+      account!.bank,
+    ]);
+    expect(bank).toMatchObject({
+      bank_id: 'mercadopago.com',
+      name: 'Mercado Pago',
+    });
+  });
+});

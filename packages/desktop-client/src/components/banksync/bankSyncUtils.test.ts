@@ -10,6 +10,10 @@ describe('bankSyncUtils', () => {
       ...generateAccount('Pluggy', true, false),
       account_sync_source: 'pluggyai' as const,
     };
+    const mercadoPagoAccount = {
+      ...generateAccount('Mercado Pago', true, false),
+      account_sync_source: 'mercadopago' as const,
+    };
     const simpleFinAccount = {
       ...generateAccount('SimpleFIN', true, false),
       account_sync_source: 'simpleFin' as const,
@@ -24,17 +28,20 @@ describe('bankSyncUtils', () => {
       unlinkedAccount,
       simpleFinAccount,
       closedAccount,
+      mercadoPagoAccount,
       pluggyAccount,
       goCardlessAccount,
     ]);
 
     expect(Object.keys(groupedAccounts)).toEqual([
       'goCardless',
+      'mercadopago',
       'pluggyai',
       'simpleFin',
       'unlinked',
     ]);
     expect(groupedAccounts.goCardless).toEqual([goCardlessAccount]);
+    expect(groupedAccounts.mercadopago).toEqual([mercadoPagoAccount]);
     expect(groupedAccounts.pluggyai).toEqual([pluggyAccount]);
     expect(groupedAccounts.simpleFin).toEqual([simpleFinAccount]);
     expect(groupedAccounts.unlinked).toEqual([unlinkedAccount]);
@@ -48,6 +55,7 @@ describe('bankSyncUtils', () => {
     expect(readable.goCardless).toBe('GoCardless');
     expect(readable.simpleFin).toBe('SimpleFIN');
     expect(readable.pluggyai).toBe('Pluggy.ai');
+    expect(readable.mercadopago).toBe('Mercado Pago');
     expect(readable.unlinked).toBe('translated:Unlinked');
   });
 });

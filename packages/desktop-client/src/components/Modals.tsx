@@ -63,6 +63,7 @@ import { ImportModal } from './modals/manager/ImportModal';
 import { ImportYNAB4Modal } from './modals/manager/ImportYNAB4Modal';
 import { ImportYNAB5Modal } from './modals/manager/ImportYNAB5Modal';
 import { ManageRulesModal } from './modals/ManageRulesModal';
+import { MercadoPagoInitialiseModal } from './modals/MercadoPagoInitialiseModal';
 import { MergeUnusedPayeesModal } from './modals/MergeUnusedPayeesModal';
 import { NewCategoryGroupModal } from './modals/NewCategoryGroupModal';
 import { NewCategoryModal } from './modals/NewCategoryModal';
@@ -194,6 +195,9 @@ export function Modals() {
 
         case 'pluggyai-init':
           return <PluggyAiInitialiseModal key={key} {...modal.options} />;
+
+        case 'mercadopago-init':
+          return <MercadoPagoInitialiseModal key={key} {...modal.options} />;
 
         case 'akahu-init':
           return <AkahuInitialiseModal key={key} {...modal.options} />;

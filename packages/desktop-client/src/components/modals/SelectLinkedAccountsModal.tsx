@@ -16,6 +16,7 @@ import type {
   SyncServerAkahuAccount,
   SyncServerEnableBankingAccount,
   SyncServerGoCardlessAccount,
+  SyncServerMercadoPagoAccount,
   SyncServerPluggyAiAccount,
   SyncServerSimpleFinAccount,
 } from '@actual-app/core/types/models';
@@ -24,6 +25,7 @@ import { format as formatDate, parseISO } from 'date-fns';
 import {
   useLinkAccountAkahuMutation,
   useLinkAccountEnableBankingMutation,
+  useLinkAccountMercadoPagoMutation,
   useLinkAccountMutation,
   useLinkAccountPluggyAiMutation,
   useLinkAccountSimpleFinMutation,
@@ -182,6 +184,12 @@ export type SelectLinkedAccountsModalProps =
     }
   | {
       requisitionId?: undefined;
+      externalAccounts: SyncServerMercadoPagoAccount[];
+      syncSource: 'mercadopago';
+      upgradingAccountId?: string;
+    }
+  | {
+      requisitionId?: undefined;
       externalAccounts: SyncServerEnableBankingAccount[];
       syncSource: 'enableBanking';
       upgradingAccountId?: string;
@@ -218,6 +226,12 @@ export function SelectLinkedAccountsModal({
           return {
             syncSource: 'pluggyai',
             externalAccounts: toSort as SyncServerPluggyAiAccount[],
+            upgradingAccountId,
+          };
+        case 'mercadopago':
+          return {
+            syncSource: 'mercadopago',
+            externalAccounts: toSort as SyncServerMercadoPagoAccount[],
             upgradingAccountId,
           };
         case 'akahu':
@@ -279,6 +293,7 @@ export function SelectLinkedAccountsModal({
   const unlinkAccount = useUnlinkAccountMutation();
   const linkAccountSimpleFin = useLinkAccountSimpleFinMutation();
   const linkAccountPluggyAi = useLinkAccountPluggyAiMutation();
+  const linkAccountMercadoPago = useLinkAccountMercadoPagoMutation();
   const linkAccountAkahu = useLinkAccountAkahuMutation();
   const linkAccountEnableBanking = useLinkAccountEnableBankingMutation();
 
@@ -329,6 +344,23 @@ export function SelectLinkedAccountsModal({
           });
         } else if (propsWithSortedExternalAccounts.syncSource === 'pluggyai') {
           linkAccountPluggyAi.mutate({
+            externalAccount:
+              propsWithSortedExternalAccounts.externalAccounts[
+                externalAccountIndex
+              ],
+            upgradingId:
+              chosenLocalAccountId !== addOnBudgetAccountOption.id &&
+              chosenLocalAccountId !== addOffBudgetAccountOption.id
+                ? chosenLocalAccountId
+                : undefined,
+            offBudget,
+            startingDate,
+            startingBalance,
+          });
+        } else if (
+          propsWithSortedExternalAccounts.syncSource === 'mercadopago'
+        ) {
+          linkAccountMercadoPago.mutate({
             externalAccount:
               propsWithSortedExternalAccounts.externalAccounts[
                 externalAccountIndex

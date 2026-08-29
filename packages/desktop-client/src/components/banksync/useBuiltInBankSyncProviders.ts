@@ -6,6 +6,7 @@ import type {
   AccountEntity,
   BankSyncCredentialSource,
   BankSyncProviders,
+  SyncServerMercadoPagoAccount,
 } from '@actual-app/core/types/models';
 import type { SyncServerSimpleFinAccount } from '@actual-app/core/types/models/simplefin';
 
@@ -16,6 +17,7 @@ import { useCurrentAccess } from '#hooks/useCurrentAccess';
 import { useEnableBankingStatus } from '#hooks/useEnableBankingStatus';
 import { useFeatureFlag } from '#hooks/useFeatureFlag';
 import { useGoCardlessStatus } from '#hooks/useGoCardlessStatus';
+import { useMercadoPagoStatus } from '#hooks/useMercadoPagoStatus';
 import { usePluggyAiStatus } from '#hooks/usePluggyAiStatus';
 import { useSimpleFinStatus } from '#hooks/useSimpleFinStatus';
 import { useSyncServerStatus } from '#hooks/useSyncServerStatus';
@@ -49,6 +51,14 @@ type PluggyAiAccount = {
     automaticallyInvestedBalance: number;
     closingBalance: number;
   };
+};
+
+type MercadoPagoAccount = {
+  account_id: string;
+  name: string;
+  type: 'checking' | 'credit' | 'savings';
+  currency: string;
+  balance?: number;
 };
 
 export type BuiltInBankSyncProviderState = {
@@ -133,6 +143,7 @@ export function useBuiltInBankSyncProviders({
   const { configuredGoCardless } = useGoCardlessStatus();
   const { configuredSimpleFin } = useSimpleFinStatus();
   const { pluggyAiStatus, setPluggyAiStatus } = usePluggyAiStatus();
+  const { mercadoPagoStatus, setMercadoPagoStatus } = useMercadoPagoStatus();
   const { configuredAkahu } = useAkahuStatus(akahuEnabled);
   const { configuredEnableBanking, isLoading: isEnableBankingLoading } =
     useEnableBankingStatus(enableBankingEnabled);
@@ -197,6 +208,25 @@ export function useBuiltInBankSyncProviders({
       }),
     );
   }, [dispatch, pluggyAiStatus.source, setPluggyAiStatus]);
+
+  const onMercadoPagoInit = useCallback(() => {
+    dispatch(
+      pushModal({
+        modal: {
+          name: 'mercadopago-init',
+          options: {
+            onSuccess: perBudgetFile => {
+              setMercadoPagoStatus({
+                configured: true,
+                source: perBudgetFile ? 'per-budget-file' : 'global',
+              });
+            },
+            credentialSource: mercadoPagoStatus.source ?? 'global',
+          },
+        },
+      }),
+    );
+  }, [dispatch, mercadoPagoStatus.source, setMercadoPagoStatus]);
 
   const onEnableBankingInit = useCallback(() => {
     dispatch(
@@ -327,6 +357,43 @@ export function useBuiltInBankSyncProviders({
     notifyResetFailure,
     pluggyAiStatus.source,
     setPluggyAiStatus,
+    t,
+  ]);
+
+  const onMercadoPagoReset = useCallback(async () => {
+    try {
+      const fileId =
+        mercadoPagoStatus.source === 'per-budget-file' ? cloudFileId : null;
+
+      if (mercadoPagoStatus.source === 'per-budget-file' && !fileId) {
+        throw new Error(t('Budget file ID is required.'));
+      }
+
+      await ensureSuccessResponse(
+        await send('secret-set', {
+          name: 'mercadopago_accessToken',
+          value: null,
+          fileId,
+        }),
+        'Failed to clear Mercado Pago access token',
+      );
+      await ensureSuccessResponse(
+        await send('secret-set', {
+          name: 'mercadopago_userId',
+          value: null,
+          fileId,
+        }),
+        'Failed to clear Mercado Pago user ID',
+      );
+      setMercadoPagoStatus(await send('mercadopago-status'));
+    } catch (error) {
+      notifyResetFailure('Mercado Pago', error);
+    }
+  }, [
+    cloudFileId,
+    mercadoPagoStatus.source,
+    notifyResetFailure,
+    setMercadoPagoStatus,
     t,
   ]);
 
@@ -554,6 +621,70 @@ export function useBuiltInBankSyncProviders({
     upgradingAccountId,
   ]);
 
+  const onConnectMercadoPago = useCallback(async () => {
+    if (!mercadoPagoStatus.configured) {
+      onMercadoPagoInit();
+      return;
+    }
+
+    try {
+      const results = await send('mercadopago-accounts');
+      if (results.error_code) {
+        throw new Error(results.reason);
+      }
+      if ('error' in results) {
+        throw new Error(results.error);
+      }
+
+      const rawAccounts = (results.data?.accounts ||
+        results.accounts ||
+        []) as MercadoPagoAccount[];
+      const externalAccounts: SyncServerMercadoPagoAccount[] = rawAccounts.map(
+        oldAccount => ({
+          account_id: oldAccount.account_id,
+          name: oldAccount.name,
+          institution: 'Mercado Pago',
+          orgDomain: 'mercadopago.com',
+          orgId: oldAccount.account_id,
+          balance: oldAccount.balance ?? 0,
+          type: oldAccount.type,
+          currency: oldAccount.currency,
+        }),
+      );
+
+      dispatch(
+        pushModal({
+          modal: {
+            name: 'select-linked-accounts',
+            options: {
+              externalAccounts,
+              syncSource: 'mercadopago',
+              upgradingAccountId,
+            },
+          },
+        }),
+      );
+    } catch (error) {
+      dispatch(
+        addNotification({
+          notification: {
+            type: 'error',
+            title: t('Error when trying to contact Mercado Pago'),
+            message: error instanceof Error ? error.message : String(error),
+            timeout: 5000,
+          },
+        }),
+      );
+      onMercadoPagoInit();
+    }
+  }, [
+    dispatch,
+    mercadoPagoStatus.configured,
+    onMercadoPagoInit,
+    t,
+    upgradingAccountId,
+  ]);
+
   const onConnectAkahu = useCallback(async () => {
     if (!isAkahuSetupComplete) {
       onAkahuInit();
@@ -639,6 +770,7 @@ export function useBuiltInBankSyncProviders({
     goCardless: Boolean(isGoCardlessSetupComplete),
     simpleFin: Boolean(isSimpleFinSetupComplete),
     pluggyai: Boolean(pluggyAiStatus.configured),
+    mercadopago: Boolean(mercadoPagoStatus.configured),
     enableBanking: Boolean(isEnableBankingSetupComplete),
     akahu: Boolean(isAkahuSetupComplete),
   } satisfies Record<BankSyncProviders, boolean>;
@@ -678,6 +810,26 @@ export function useBuiltInBankSyncProviders({
             onConfigure: onSimpleFinInit,
             onLink: onConnectSimpleFin,
             onReset: onSimpleFinReset,
+          };
+        }
+
+        if (providerId === 'mercadopago') {
+          return {
+            id: providerId,
+            displayName: 'Mercado Pago',
+            description: t(
+              'Link a Mercado Pago account to automatically download transactions, credit card purchases, and CDI yields.',
+            ),
+            isConfigured: configuredProviders.mercadopago,
+            credentialSource: mercadoPagoStatus.source ?? 'global',
+            supportsPerBudgetFile: true,
+            canConfigure:
+              syncServerStatus === 'online' &&
+              (isAdmin ||
+                (isFileOwner && mercadoPagoStatus.source !== 'global')),
+            onConfigure: onMercadoPagoInit,
+            onLink: onConnectMercadoPago,
+            onReset: onMercadoPagoReset,
           };
         }
 
@@ -742,9 +894,11 @@ export function useBuiltInBankSyncProviders({
     isFileOwner,
     configuredProviders.enableBanking,
     configuredProviders.goCardless,
+    configuredProviders.mercadopago,
     configuredProviders.pluggyai,
     configuredProviders.simpleFin,
     configuredProviders.akahu,
+    mercadoPagoStatus,
     pluggyAiStatus,
     syncServerStatus,
     enableBankingEnabled,
@@ -755,6 +909,7 @@ export function useBuiltInBankSyncProviders({
     onConnectAkahu,
     onConnectEnableBanking,
     onConnectGoCardless,
+    onConnectMercadoPago,
     onConnectPluggyAi,
     onConnectSimpleFin,
     onAkahuInit,
@@ -763,6 +918,8 @@ export function useBuiltInBankSyncProviders({
     onEnableBankingReset,
     onGoCardlessInit,
     onGoCardlessReset,
+    onMercadoPagoInit,
+    onMercadoPagoReset,
     onPluggyAiInit,
     onPluggyAiReset,
     onSimpleFinInit,

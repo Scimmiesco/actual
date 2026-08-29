@@ -8,6 +8,7 @@ import type {
   SyncServerAkahuAccount,
   SyncServerEnableBankingAccount,
   SyncServerGoCardlessAccount,
+  SyncServerMercadoPagoAccount,
   SyncServerPluggyAiAccount,
   SyncServerSimpleFinAccount,
   TransactionEntity,
@@ -494,6 +495,48 @@ export function useLinkAccountPluggyAiMutation() {
         dispatch,
         t(
           'There was an error linking the account to PluggyAI. Please try again.',
+        ),
+        error,
+      );
+    },
+  });
+}
+
+type LinkAccountMercadoPagoPayload = LinkAccountBasePayload & {
+  externalAccount: SyncServerMercadoPagoAccount;
+};
+
+export function useLinkAccountMercadoPagoMutation() {
+  const queryClient = useQueryClient();
+  const dispatch = useDispatch();
+  const { t } = useTranslation();
+
+  return useMutation({
+    mutationFn: async ({
+      externalAccount,
+      upgradingId,
+      offBudget,
+      startingDate,
+      startingBalance,
+    }: LinkAccountMercadoPagoPayload) => {
+      await send('mercadopago-accounts-link', {
+        externalAccount,
+        upgradingId,
+        offBudget,
+        startingDate,
+        startingBalance,
+      });
+    },
+    onSuccess: () => {
+      invalidateQueries(queryClient);
+      invalidateQueries(queryClient, payeeQueries.lists());
+    },
+    onError: error => {
+      console.error('Error linking account to Mercado Pago:', error);
+      dispatchErrorNotification(
+        dispatch,
+        t(
+          'There was an error linking the account to Mercado Pago. Please try again.',
         ),
         error,
       );

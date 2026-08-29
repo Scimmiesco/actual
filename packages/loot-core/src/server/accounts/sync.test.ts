@@ -16,6 +16,7 @@ import {
   addTransactions,
   reconcileTransactions,
   simpleFinBatchSync,
+  syncAccount,
 } from './sync';
 
 vi.mock('#shared/months', async () => ({
@@ -946,5 +947,97 @@ describe('SimpleFin batch sync', () => {
     expect(missingResult).toBeDefined();
     expect(missingResult.res.error_code).toBe('ACCOUNT_MISSING');
     expect(missingResult.res.error_type).toBe('ACCOUNT_MISSING');
+  });
+
+  describe('Mercado Pago sync', () => {
+    it('automatically reconciles the account balance to match live bank balance', async () => {
+      vi.mocked(asyncStorage.getItem).mockResolvedValue('valid-test-token');
+      const bankId = 'mercadopago.com';
+      db.runQuery(
+        'INSERT INTO banks (id, bank_id, name, tombstone) VALUES (?, ?, ?, 0)',
+        ['bank-mp', bankId, 'Mercado Pago'],
+      );
+
+      const acctId = await db.insertAccount({
+        id: 'mp-test-acct',
+        account_id: 'mp_account_checking',
+        name: 'Mercado Pago Saldo',
+        bank: 'bank-mp',
+        account_sync_source: 'mercadopago',
+      });
+      await db.insertPayee({
+        id: 'transfer-' + acctId,
+        name: '',
+        transfer_acct: acctId,
+      });
+
+      // Mock initial sync response from Mercado Pago
+      // Live balance = R$ 1.500,00 (150000 cents), 1 debit transaction of -R$ 50,00 (-5000 cents)
+      let mockBalance = 150000;
+      handlers['/mercadopago/transactions'] = () => {
+        return {
+          transactions: {
+            all: [
+              {
+                transactionId: 'mp_tx_1',
+                date: '2017-10-10',
+                bookingDate: '2017-10-10',
+                transactionAmount: { amount: '-50.00', currency: 'BRL' },
+                payeeName: 'Padaria Central',
+                booked: true,
+              },
+            ],
+            booked: [],
+            pending: [],
+          },
+          balances: [
+            {
+              balanceAmount: {
+                amount: (mockBalance / 100).toFixed(2),
+                currency: 'BRL',
+              },
+              balanceType: 'expected',
+              referenceDate: '2017-10-15',
+            },
+          ],
+          startingBalance: mockBalance,
+        };
+      };
+
+      // 1. Initial Sync
+      await syncAccount(
+        'user-1',
+        'key-1',
+        acctId,
+        'mp_account_checking',
+        bankId,
+      );
+
+      // Starting balance should be 150000 - (-5000) = 155000
+      // Total ledger balance = 155000 - 5000 = 150000 (R$ 1.500,00)
+      let sumRes = await db.first<{ total: number }>(
+        'SELECT SUM(amount) as total FROM v_transactions_internal WHERE account = ?',
+        [acctId],
+      );
+      expect(sumRes!.total).toBe(150000);
+
+      // 2. Subsequent sync where live balance in MP increases to R$ 1.700,00
+      mockBalance = 170000;
+
+      await syncAccount(
+        'user-1',
+        'key-1',
+        acctId,
+        'mp_account_checking',
+        bankId,
+      );
+
+      // Auto-reconciliation should automatically adjust starting balance by +20000
+      sumRes = await db.first<{ total: number }>(
+        'SELECT SUM(amount) as total FROM v_transactions_internal WHERE account = ?',
+        [acctId],
+      );
+      expect(sumRes!.total).toBe(170000);
+    });
   });
 });

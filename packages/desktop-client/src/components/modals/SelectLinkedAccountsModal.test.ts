@@ -112,6 +112,30 @@ describe('computeInitialLinkState', () => {
 
     expect(initiallyChosenAccounts).toEqual({ 'ext-1': 'local-1' });
   });
+
+  it('correctly matches and sets initial linking for Mercado Pago accounts', () => {
+    const localAccounts = [
+      makeLocalAccount({
+        id: 'local-mp',
+        account_id: 'mp-1',
+        account_sync_source: 'mercadopago',
+      }),
+    ];
+    const externalAccounts = [
+      {
+        account_id: 'mp-1',
+        name: 'Mercado Pago Wallet',
+        balance: 1000,
+        institution: 'Mercado Pago',
+      },
+    ];
+
+    const { initiallyChosenAccounts, initialDraftLinkAccounts } =
+      computeInitialLinkState(localAccounts, externalAccounts, undefined);
+
+    expect(initiallyChosenAccounts['mp-1']).toBe('local-mp');
+    expect(initialDraftLinkAccounts.get('mp-1')).toBe('linking');
+  });
 });
 
 describe('getSelectableAccountOptions', () => {

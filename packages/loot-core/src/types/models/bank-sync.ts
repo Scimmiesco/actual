@@ -24,6 +24,7 @@ export const SYNC_PROVIDERS = [
   'goCardless',
   'simpleFin',
   'pluggyai',
+  'mercadopago',
   'enableBanking',
   'akahu',
 ] as const;

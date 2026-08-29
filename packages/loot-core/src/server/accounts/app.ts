@@ -34,6 +34,7 @@ import type {
   SyncServerAkahuAccount,
   SyncServerEnableBankingAccount,
   SyncServerGoCardlessAccount,
+  SyncServerMercadoPagoAccount,
   SyncServerPluggyAiAccount,
   SyncServerSimpleFinAccount,
   TransactionEntity,
@@ -59,6 +60,7 @@ export type AccountHandlers = {
   'gocardless-accounts-link': typeof linkGoCardlessAccount;
   'simplefin-accounts-link': typeof linkSimpleFinAccount;
   'pluggyai-accounts-link': typeof linkPluggyAiAccount;
+  'mercadopago-accounts-link': typeof linkMercadoPagoAccount;
   'akahu-accounts-link': typeof linkAkahuAccount;
   'enablebanking-accounts-link': typeof linkEnableBankingAccount;
   'account-create': typeof createAccount;
@@ -72,6 +74,7 @@ export type AccountHandlers = {
   'gocardless-status': typeof goCardlessStatus;
   'simplefin-status': typeof simpleFinStatus;
   'pluggyai-status': typeof pluggyAiStatus;
+  'mercadopago-status': typeof mercadoPagoStatus;
   'akahu-status': typeof akahuStatus;
   'enablebanking-status': typeof enableBankingStatus;
   'enablebanking-aspsps': typeof enableBankingAspsps;
@@ -80,8 +83,10 @@ export type AccountHandlers = {
   'enablebanking-poll-auth': typeof enableBankingPollAuth;
   'enablebanking-poll-auth-stop': typeof stopEnableBankingPollAuth;
   'enablebanking-configure': typeof enableBankingConfigure;
+  'mercadopago-configure': typeof mercadoPagoConfigure;
   'simplefin-accounts': typeof simpleFinAccounts;
   'pluggyai-accounts': typeof pluggyAiAccounts;
+  'mercadopago-accounts': typeof mercadoPagoAccounts;
   'akahu-accounts': typeof akahuAccounts;
   'gocardless-get-banks': typeof getGoCardlessBanks;
   'gocardless-create-web-token': typeof createGoCardlessWebToken;
@@ -363,6 +368,82 @@ async function linkPluggyAiAccount({
       bank: bank.id,
       offbudget: offBudget ? 1 : 0,
       account_sync_source: 'pluggyai',
+    });
+    await db.insertPayee({
+      name: '',
+      transfer_acct: id,
+    });
+  }
+
+  const syncRes = await bankSync.syncAccount(
+    undefined,
+    undefined,
+    id,
+    externalAccount.account_id,
+    bank.bank_id,
+    startingDate,
+    startingBalance,
+    fileId,
+  );
+
+  await handleSyncResponse(syncRes, id);
+
+  connection.send('sync-event', {
+    type: 'success',
+    tables: ['transactions', 'accounts'],
+  });
+
+  return 'ok';
+}
+
+async function linkMercadoPagoAccount({
+  externalAccount,
+  upgradingId,
+  offBudget = false,
+  startingDate,
+  startingBalance,
+}: LinkAccountBaseParams & {
+  externalAccount: SyncServerMercadoPagoAccount;
+}) {
+  let id;
+  const fileId = getPrefs()?.cloudFileId;
+
+  const institution = {
+    name: externalAccount.institution ?? 'Mercado Pago',
+  };
+
+  const bank = await link.findOrCreateBank(
+    institution,
+    externalAccount.orgDomain ?? 'mercadopago.com',
+  );
+
+  if (upgradingId) {
+    const accRow = await db.first<db.DbAccount>(
+      'SELECT * FROM accounts WHERE id = ?',
+      [upgradingId],
+    );
+
+    if (!accRow) {
+      throw new Error(`Account with ID ${upgradingId} not found.`);
+    }
+
+    id = accRow.id;
+    await db.update('accounts', {
+      id,
+      account_id: externalAccount.account_id,
+      bank: bank.id,
+      account_sync_source: 'mercadopago',
+    });
+  } else {
+    id = uuidv4();
+    await db.insertWithUUID('accounts', {
+      id,
+      account_id: externalAccount.account_id,
+      name: externalAccount.name,
+      official_name: externalAccount.name,
+      bank: bank.id,
+      offbudget: offBudget ? 1 : 0,
+      account_sync_source: 'mercadopago',
     });
     await db.insertPayee({
       name: '',
@@ -933,6 +1014,36 @@ async function pluggyAiStatus(): Promise<BankSyncProviderStatus> {
   );
 }
 
+async function mercadoPagoStatus(): Promise<BankSyncProviderStatus> {
+  const userToken = await asyncStorage.getItem('user-token');
+
+  if (!userToken) {
+    return { error: 'unauthorized' };
+  }
+
+  const serverConfig = getServer();
+  if (!serverConfig) {
+    throw new Error('Failed to get server config.');
+  }
+
+  try {
+    const fileId = getPrefs()?.cloudFileId;
+    return await post(
+      serverConfig.MERCADOPAGO_SERVER + '/status',
+      {},
+      {
+        'X-ACTUAL-TOKEN': userToken,
+        ...(fileId ? { 'X-Actual-File-Id': fileId } : {}),
+      },
+    );
+  } catch (error) {
+    return {
+      configured: false,
+      error: error instanceof Error ? error.message : 'failed',
+    };
+  }
+}
+
 async function akahuStatus() {
   const userToken = await asyncStorage.getItem('user-token');
 
@@ -996,6 +1107,34 @@ async function pluggyAiAccounts() {
     const fileId = getPrefs()?.cloudFileId;
     return await post(
       serverConfig.PLUGGYAI_SERVER + '/accounts',
+      {},
+      {
+        'X-ACTUAL-TOKEN': userToken,
+        ...(fileId ? { 'X-Actual-File-Id': fileId } : {}),
+      },
+      60000,
+    );
+  } catch {
+    return { error_code: 'TIMED_OUT' };
+  }
+}
+
+async function mercadoPagoAccounts() {
+  const userToken = await asyncStorage.getItem('user-token');
+
+  if (!userToken) {
+    return { error: 'unauthorized' };
+  }
+
+  const serverConfig = getServer();
+  if (!serverConfig) {
+    throw new Error('Failed to get server config.');
+  }
+
+  try {
+    const fileId = getPrefs()?.cloudFileId;
+    return await post(
+      serverConfig.MERCADOPAGO_SERVER + '/accounts',
       {},
       {
         'X-ACTUAL-TOKEN': userToken,
@@ -1216,6 +1355,37 @@ async function enableBankingConfigure(config: {
   return post(serverConfig.ENABLEBANKING_SERVER + '/configure', config, {
     'X-ACTUAL-TOKEN': userToken,
   });
+}
+
+async function mercadoPagoConfigure(config: {
+  accessToken: string;
+  fileId?: string | null;
+}) {
+  const userToken = await asyncStorage.getItem('user-token');
+
+  if (!userToken) {
+    return { error: 'unauthorized' };
+  }
+
+  const serverConfig = getServer();
+  if (!serverConfig) {
+    throw new Error('Failed to get server config.');
+  }
+
+  try {
+    return await post(
+      serverConfig.MERCADOPAGO_SERVER + '/config',
+      { accessToken: config.accessToken },
+      {
+        'X-ACTUAL-TOKEN': userToken,
+        ...(config.fileId ? { 'X-Actual-File-Id': config.fileId } : {}),
+      },
+    );
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : 'failed',
+    };
+  }
 }
 
 async function getGoCardlessBanks(country: string) {
@@ -1775,6 +1945,7 @@ app.method('account-properties', getAccountProperties);
 app.method('gocardless-accounts-link', linkGoCardlessAccount);
 app.method('simplefin-accounts-link', linkSimpleFinAccount);
 app.method('pluggyai-accounts-link', linkPluggyAiAccount);
+app.method('mercadopago-accounts-link', linkMercadoPagoAccount);
 app.method('akahu-accounts-link', linkAkahuAccount);
 app.method('enablebanking-accounts-link', linkEnableBankingAccount);
 app.method('account-create', mutator(undoable(createAccount)));
@@ -1788,6 +1959,7 @@ app.method('gocardless-poll-web-token-stop', stopGoCardlessWebTokenPolling);
 app.method('gocardless-status', goCardlessStatus);
 app.method('simplefin-status', simpleFinStatus);
 app.method('pluggyai-status', pluggyAiStatus);
+app.method('mercadopago-status', mercadoPagoStatus);
 app.method('akahu-status', akahuStatus);
 app.method('enablebanking-status', enableBankingStatus);
 app.method('enablebanking-aspsps', enableBankingAspsps);
@@ -1796,8 +1968,10 @@ app.method('enablebanking-complete-auth', enableBankingCompleteAuth);
 app.method('enablebanking-poll-auth', enableBankingPollAuth);
 app.method('enablebanking-poll-auth-stop', stopEnableBankingPollAuth);
 app.method('enablebanking-configure', enableBankingConfigure);
+app.method('mercadopago-configure', mercadoPagoConfigure);
 app.method('simplefin-accounts', simpleFinAccounts);
 app.method('pluggyai-accounts', pluggyAiAccounts);
+app.method('mercadopago-accounts', mercadoPagoAccounts);
 app.method('akahu-accounts', akahuAccounts);
 app.method('gocardless-get-banks', getGoCardlessBanks);
 app.method('gocardless-create-web-token', createGoCardlessWebToken);

@@ -1,3 +1,5 @@
+import { MercadoPagoConfig, Payment, User } from 'mercadopago';
+
 import { SecretName, secretsService } from '#services/secrets-service';
 
 import type {
@@ -9,8 +11,20 @@ import type {
 
 const MP_API_BASE_URL = 'https://api.mercadopago.com';
 
+function getMpClient(accessToken: string) {
+  const config = new MercadoPagoConfig({ accessToken });
+  return {
+    config,
+    userClient: new User(config),
+    paymentClient: new Payment(config),
+  };
+}
+
 function hasCredentials(fileId: string | null = null): boolean {
-  return !!secretsService.get(SecretName.mercadopago_accessToken, fileId);
+  return !!secretsService.get(
+    SecretName.mercadopago_accessToken,
+    fileId ?? undefined,
+  );
 }
 
 function getCredentialSource(
@@ -36,7 +50,7 @@ function getAccessToken(fileId: string | null = null): string {
   const credentialFileId = source === 'per-budget-file' ? fileId : null;
   const token = secretsService.get(
     SecretName.mercadopago_accessToken,
-    credentialFileId,
+    credentialFileId ?? undefined,
   );
 
   if (!token) {
@@ -49,7 +63,10 @@ function getAccessToken(fileId: string | null = null): string {
 function getStoredUserId(fileId: string | null = null): string | null {
   const source = getCredentialSource(fileId);
   const credentialFileId = source === 'per-budget-file' ? fileId : null;
-  return secretsService.get(SecretName.mercadopago_userId, credentialFileId);
+  return secretsService.get(
+    SecretName.mercadopago_userId,
+    credentialFileId ?? undefined,
+  );
 }
 
 export function isYieldMovement(movement: MercadoPagoMovement): boolean {
@@ -67,7 +84,10 @@ export function isYieldMovement(movement: MercadoPagoMovement): boolean {
   );
 }
 
-export function isDebitMovement(movement: MercadoPagoMovement): boolean {
+export function isDebitMovement(
+  movement: MercadoPagoMovement,
+  userId?: string | number | null,
+): boolean {
   const type = (movement.type || movement.operation_type || '').toLowerCase();
   const branch = (
     movement.point_of_interaction?.business_info?.branch || ''
@@ -80,6 +100,28 @@ export function isDebitMovement(movement: MercadoPagoMovement): boolean {
     if (branch.includes('pot-to-am')) {
       return false;
     }
+    return true;
+  }
+
+  // Se o usuário é explicitamente o recebedor (collector) da transação, é uma ENTRADA (crédito).
+  // Exceção: se for categorizado como 'fee' (tarifa cobrada do usuário).
+  if (
+    userId &&
+    movement.collector_id &&
+    String(movement.collector_id) === String(userId)
+  ) {
+    if (type === 'fee') {
+      return true;
+    }
+    return false;
+  }
+
+  // Se o usuário é explicitamente o pagador, é um DÉBITO.
+  if (
+    userId &&
+    movement.payer?.id &&
+    String(movement.payer.id) === String(userId)
+  ) {
     return true;
   }
 
@@ -196,24 +238,12 @@ export const mercadopagoService = {
 
   getStoredUserId,
 
-  validateAccessToken: async (accessToken: string): Promise<MercadoPagoUser> => {
-    const response = await fetch(`${MP_API_BASE_URL}/users/me`, {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(
-        `Falha ao autenticar com o Mercado Pago (${response.status}): ${errorText}`,
-      );
-    }
-
-    const userData = (await response.json()) as MercadoPagoUser;
-    return userData;
+  validateAccessToken: async (
+    accessToken: string,
+  ): Promise<MercadoPagoUser> => {
+    const { userClient } = getMpClient(accessToken);
+    const userData = await userClient.get();
+    return userData as unknown as MercadoPagoUser;
   },
 
   saveCredentials: async ({
@@ -244,6 +274,96 @@ export const mercadopagoService = {
     };
   },
 
+  fetchBalance: async (
+    userId?: string | number | null,
+    fileId: string | null = null,
+  ): Promise<{
+    total_amount: number;
+    available_amount: number;
+    unavailable_amount: number;
+  }> => {
+    const token = getAccessToken(fileId);
+    let uid = userId;
+    if (!uid) {
+      uid = getStoredUserId(fileId);
+    }
+    if (!uid) {
+      try {
+        const user = await mercadopagoService.validateAccessToken(token);
+        uid = user.id;
+      } catch {
+        // ignore
+      }
+    }
+
+    const endpoints = [
+      ...(uid
+        ? [
+            `${MP_API_BASE_URL}/users/${uid}/mercadopago_account/balance`,
+            `${MP_API_BASE_URL}/users/${uid}/balance`,
+          ]
+        : []),
+      `${MP_API_BASE_URL}/users/me/mercadopago_account/balance`,
+      `${MP_API_BASE_URL}/users/me/balance`,
+      `${MP_API_BASE_URL}/account/balance`,
+      `${MP_API_BASE_URL}/v1/account/balance`,
+    ];
+
+    for (const endpoint of endpoints) {
+      try {
+        const response = await fetch(endpoint, {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (response.ok) {
+          const data = (await response.json()) as Record<string, unknown>;
+          console.log(
+            `[MercadoPago] Balance response from ${endpoint}:`,
+            JSON.stringify(data),
+          );
+
+          const total = Number(
+            data.total_amount ??
+              data.total ??
+              data.available_amount ??
+              data.available_balance ??
+              data.balance ??
+              data.amount ??
+              0,
+          );
+          const available = Number(
+            data.available_amount ??
+              data.available_balance ??
+              data.total_amount ??
+              data.balance ??
+              0,
+          );
+          const unavailable = Number(
+            data.unavailable_amount ?? data.unavailable_balance ?? 0,
+          );
+
+          return {
+            total_amount: total,
+            available_amount: available,
+            unavailable_amount: unavailable,
+          };
+        } else {
+          console.log(
+            `[MercadoPago] Balance check at ${endpoint} returned status ${response.status}`,
+          );
+        }
+      } catch (e) {
+        console.log(`[MercadoPago] Balance check at ${endpoint} failed:`, e);
+      }
+    }
+
+    return { total_amount: 0, available_amount: 0, unavailable_amount: 0 };
+  },
+
   getAccounts: async (
     fileId: string | null = null,
   ): Promise<MercadoPagoAccount[]> => {
@@ -256,24 +376,38 @@ export const mercadopagoService = {
         ? `${user.first_name} ${user.last_name}`
         : user.nickname || 'Mercado Pago';
 
+    let checkingBalance = 0;
+    try {
+      const balanceData = await mercadopagoService.fetchBalance(
+        user.id,
+        fileId,
+      );
+      checkingBalance = Math.round(balanceData.total_amount * 100);
+    } catch {
+      // ignore
+    }
+
     return [
       {
         account_id: 'mp_account_checking',
         name: `${userName} - Saldo Principal`,
         type: 'checking',
         currency: 'BRL',
+        balance: checkingBalance,
       },
       {
         account_id: 'mp_account_credit',
         name: `${userName} - Cartão de Crédito`,
         type: 'credit',
         currency: 'BRL',
+        balance: 0,
       },
       {
         account_id: 'mp_account_savings',
         name: `${userName} - Reservas e Cofrinhos`,
         type: 'savings',
         currency: 'BRL',
+        balance: 0,
       },
     ];
   },
@@ -292,41 +426,26 @@ export const mercadopagoService = {
     const limit = 50;
     let offset = 0;
     let total = 0;
+    const { paymentClient } = getMpClient(token);
 
     do {
-      const paymentParams = new URLSearchParams();
-      paymentParams.append('limit', String(limit));
-      paymentParams.append('offset', String(offset));
-      paymentParams.append('status', 'approved');
-      paymentParams.append('sort', 'date_created');
-      paymentParams.append('criteria', 'desc');
-
-      if (beginDate) paymentParams.append('begin_date', beginDate);
-      if (endDate) paymentParams.append('end_date', endDate);
-
-      const response = await fetch(
-        `${MP_API_BASE_URL}/v1/payments/search?${paymentParams.toString()}`,
-        {
-          method: 'GET',
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
+      const searchResult = await paymentClient.search({
+        options: {
+          limit,
+          offset,
+          sort: 'date_created',
+          criteria: 'desc',
+          ...(beginDate ? { begin_date: beginDate } : {}),
+          ...(endDate ? { end_date: endDate } : {}),
         },
-      );
+      });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(
-          `Erro ao consultar pagamentos no Mercado Pago (${response.status}): ${errorText}`,
+      total = searchResult.paging?.total || 0;
+
+      if (searchResult.results && searchResult.results.length > 0) {
+        allMovements.push(
+          ...(searchResult.results as unknown as MercadoPagoMovement[]),
         );
-      }
-
-      const data = (await response.json()) as MercadoPagoMovementsResponse;
-      total = data.paging?.total || 0;
-
-      if (data.results && data.results.length > 0) {
-        allMovements.push(...data.results);
       }
 
       offset += limit;
@@ -382,10 +501,12 @@ export const mercadopagoService = {
     const pending = [];
     const all = [];
 
+    const userId = getStoredUserId(fileId);
+
     for (const mov of filteredMovements) {
       const rawNum = mov.amount ?? mov.transaction_amount ?? 0;
       const rawAbsoluteAmount = Math.abs(rawNum);
-      const isDebit = isDebitMovement(mov);
+      const isDebit = isDebitMovement(mov, userId);
       const finalAmount = isDebit ? -rawAbsoluteAmount : rawAbsoluteAmount;
 
       const dateStr = (
@@ -423,6 +544,22 @@ export const mercadopagoService = {
       }
     }
 
+    let liveBalance = 0;
+    if (accountId === 'mp_account_checking' || !accountId) {
+      try {
+        const storedUid = getStoredUserId(fileId);
+        const balanceData = await mercadopagoService.fetchBalance(
+          storedUid,
+          fileId,
+        );
+        liveBalance = Number(
+          balanceData.total_amount ?? balanceData.available_amount ?? 0,
+        );
+      } catch {
+        // ignore
+      }
+    }
+
     return {
       transactions: {
         all,
@@ -432,15 +569,14 @@ export const mercadopagoService = {
       balances: [
         {
           balanceAmount: {
-            amount: '0.00',
+            amount: liveBalance.toFixed(2),
             currency: 'BRL',
           },
           balanceType: 'expected',
           referenceDate: new Date().toISOString().split('T')[0],
         },
       ],
-      startingBalance: 0,
+      startingBalance: Math.round(liveBalance * 100),
     };
   },
 };
-
