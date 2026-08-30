@@ -229,6 +229,30 @@ export function useTransactionRowContextActions({
       onClick: () => onMakeAsNonSplitTransactions(selectedIds),
       hidden: !canUnsplitTransactions,
     },
+    {
+      name: 'create-installments',
+      text: t('Split into installments'),
+      onClick: () => {
+        const tx = getTransaction(selectedIds[0]);
+        if (tx) {
+          dispatch(
+            pushModal({
+              modal: {
+                name: 'create-installments',
+                options: {
+                  transaction: tx,
+                },
+              },
+            }),
+          );
+        }
+      },
+      hidden: !(
+        selectedIds.length === 1 &&
+        !transaction.is_child &&
+        !transaction.is_parent
+      ),
+    },
   ];
 
   useContextMenu({

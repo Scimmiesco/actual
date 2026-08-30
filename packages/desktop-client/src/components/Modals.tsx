@@ -33,6 +33,7 @@ import { CopyWidgetToDashboardModal } from './modals/CopyWidgetToDashboardModal'
 import { CoverModal } from './modals/CoverModal';
 import { CreateAccountModal } from './modals/CreateAccountModal';
 import { CreateEncryptionKeyModal } from './modals/CreateEncryptionKeyModal';
+import { CreateInstallmentsModal } from './modals/CreateInstallmentsModal';
 import { CreateLocalAccountModal } from './modals/CreateLocalAccountModal';
 import { EditUserAccess } from './modals/EditAccess';
 import { EditFieldModal } from './modals/EditFieldModal';
@@ -218,6 +219,9 @@ export function Modals() {
 
         case 'create-encryption-key':
           return <CreateEncryptionKeyModal key={key} {...modal.options} />;
+
+        case 'create-installments':
+          return <CreateInstallmentsModal key={key} {...modal.options} />;
 
         case 'fix-encryption-key':
           return <FixEncryptionKeyModal key={key} {...modal.options} />;

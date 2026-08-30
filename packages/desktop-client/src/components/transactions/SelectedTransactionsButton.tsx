@@ -203,6 +203,14 @@ export function SelectedTransactionsButton({
     return areNoReconciledTransactions && areAllSplitTransactions;
   }, [selectedIds, types, getTransaction]);
 
+  const canCreateInstallments = useMemo(() => {
+    if (selectedIds.length !== 1 || types.preview) {
+      return false;
+    }
+    const tx = getTransaction(selectedIds[0]);
+    return Boolean(tx && !tx.is_child && !tx.is_parent);
+  }, [selectedIds, types, getTransaction]);
+
   function onViewSchedule() {
     const firstId = selectedIds[0];
     let scheduleId;
@@ -389,6 +397,14 @@ export function SelectedTransactionsButton({
                     } as const,
                   ]
                 : []),
+              ...(canCreateInstallments
+                ? [
+                    {
+                      name: 'create-installments',
+                      text: t('Split into installments'),
+                    } as const,
+                  ]
+                : []),
               ...(canMerge
                 ? [
                     {
@@ -426,6 +442,22 @@ export function SelectedTransactionsButton({
           case 'unsplit-transactions':
             onMakeAsNonSplitTransactions(selectedIds);
             break;
+          case 'create-installments': {
+            const tx = getTransaction(selectedIds[0]);
+            if (tx) {
+              dispatch(
+                pushModal({
+                  modal: {
+                    name: 'create-installments',
+                    options: {
+                      transaction: tx,
+                    },
+                  },
+                }),
+              );
+            }
+            break;
+          }
           case 'merge-transactions':
             onMergeTransactions(selectedIds);
             break;

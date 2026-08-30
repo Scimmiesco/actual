@@ -351,10 +351,10 @@ export type Modal =
       name: 'account-menu';
       options: {
         accountId: AccountEntity['id'];
-        onSave: (account: AccountEntity) => void;
-        onCloseAccount: (accountId: AccountEntity['id']) => void;
-        onReopenAccount: (accountId: AccountEntity['id']) => void;
-        onEditNotes: (id: NoteEntity['id']) => void;
+        onSave?: (account: AccountEntity) => void;
+        onCloseAccount?: (accountId: AccountEntity['id']) => void;
+        onReopenAccount?: (accountId: AccountEntity['id']) => void;
+        onEditNotes?: (id: NoteEntity['id']) => void;
         onClose?: () => void;
         onReconcile?: () => void;
         onToggleRunningBalance?: () => void;
@@ -366,6 +366,13 @@ export type Modal =
       options: {
         accountId: AccountEntity['id'];
         onReconcile: (amount: number) => void;
+      };
+    }
+  | {
+      name: 'create-installments';
+      options: {
+        transaction: TransactionEntity;
+        onSave?: () => void;
       };
     }
   | {
