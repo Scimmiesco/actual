@@ -11,17 +11,21 @@ import {
 import { SvgLockClosed, SvgNotesPaper } from '@actual-app/components/icons/v2';
 import { Menu } from '@actual-app/components/menu';
 import { Popover } from '@actual-app/components/popover';
+import { Select } from '@actual-app/components/select';
 import { styles } from '@actual-app/components/styles';
+import { Text } from '@actual-app/components/text';
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
-import type { AccountEntity } from '@actual-app/core/types/models';
+import type { AccountEntity, AccountType } from '@actual-app/core/types/models';
 
+import { useUpdateAccountMutation } from '#accounts';
 import {
   Modal,
   ModalCloseButton,
   ModalHeader,
   ModalTitle,
 } from '#components/common/Modal';
+import { Checkbox } from '#components/forms';
 import { Notes } from '#components/Notes';
 import { validateAccountName } from '#components/util/accountValidation';
 import { useAccount } from '#hooks/useAccount';
@@ -55,6 +59,15 @@ export function AccountMenuModal({
     account?.name || t('New Account'),
   );
 
+  const { mutate: updateAccount } = useUpdateAccountMutation();
+  const handleSave = (updatedAccount: AccountEntity) => {
+    if (onSave) {
+      onSave(updatedAccount);
+    } else {
+      updateAccount({ account: updatedAccount });
+    }
+  };
+
   const onRename = (newName: string) => {
     newName = newName.trim();
     if (!account) {
@@ -76,12 +89,34 @@ export function AccountMenuModal({
         setAccountNameError(renameAccountError);
       } else {
         setAccountNameError('');
-        onSave?.({
+        handleSave({
           ...account,
           name: newName,
         });
       }
     }
+  };
+
+  const onChangeType = (newType: AccountType) => {
+    if (!account) {
+      return;
+    }
+
+    handleSave({
+      ...account,
+      type: newType,
+    });
+  };
+
+  const onChangeOffBudget = (newOffBudget: boolean) => {
+    if (!account) {
+      return;
+    }
+
+    handleSave({
+      ...account,
+      offbudget: newOffBudget ? 1 : 0,
+    });
   };
 
   const _onEditNotes = () => {
@@ -113,6 +148,9 @@ export function AccountMenuModal({
       containerProps={{
         style: {
           height: '45vh',
+          minHeight: 350,
+          width: '30vw',
+          minWidth: 400,
         },
       }}
     >
@@ -150,6 +188,54 @@ export function AccountMenuModal({
               flexDirection: 'column',
             }}
           >
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginBottom: 10,
+                paddingBottom: 10,
+                borderBottomWidth: 1,
+                borderColor: theme.tableBorder,
+              }}
+            >
+              <Text style={{ color: theme.pageTextSubdued, fontWeight: 500 }}>
+                <Trans>Account type</Trans>
+              </Text>
+              <Select<AccountType>
+                options={[
+                  ['checking', t('Checking / Standard')],
+                  ['credit', t('Credit Card')],
+                  ['savings', t('Savings')],
+                  ['investment', t('Investment')],
+                  ['mortgage', t('Mortgage')],
+                  ['debt', t('Debt / Loan')],
+                  ['other', t('Other')],
+                ]}
+                value={(account.type as AccountType) || 'checking'}
+                onChange={onChangeType}
+              />
+            </View>
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginBottom: 10,
+                paddingBottom: 10,
+                borderBottomWidth: 1,
+                borderColor: theme.tableBorder,
+              }}
+            >
+              <Text style={{ color: theme.pageTextSubdued, fontWeight: 500 }}>
+                <Trans>Off budget</Trans>
+              </Text>
+              <Checkbox
+                id="account-offbudget"
+                checked={!!account.offbudget}
+                onChange={e => onChangeOffBudget(e.target.checked)}
+              />
+            </View>
             <View
               style={{
                 overflowY: 'auto',

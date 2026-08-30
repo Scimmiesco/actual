@@ -59,6 +59,8 @@ type CreateAccountPayload = {
   name: string;
   balance: number;
   offBudget: boolean;
+  type?: AccountEntity['type'];
+  accountGroupId?: AccountEntity['account_group_id'];
 };
 
 export function useCreateAccountMutation() {
@@ -67,11 +69,19 @@ export function useCreateAccountMutation() {
   const { t } = useTranslation();
 
   return useMutation({
-    mutationFn: async ({ name, balance, offBudget }: CreateAccountPayload) => {
+    mutationFn: async ({
+      name,
+      balance,
+      offBudget,
+      type,
+      accountGroupId,
+    }: CreateAccountPayload) => {
       const id = await send('account-create', {
         name,
         balance,
         offBudget,
+        type,
+        accountGroupId,
       });
       return id;
     },

@@ -32,7 +32,7 @@ import { useDragRef } from '#hooks/useDragRef';
 import { useIsTestEnv } from '#hooks/useIsTestEnv';
 import { useNotes } from '#hooks/useNotes';
 import { useSyncedPref } from '#hooks/useSyncedPref';
-import { openAccountCloseModal } from '#modals/modalsSlice';
+import { openAccountCloseModal, pushModal } from '#modals/modalsSlice';
 import { useDispatch, useSelector } from '#redux';
 import type { Binding, SheetFields } from '#spreadsheet';
 
@@ -140,6 +140,21 @@ export function Account<FieldName extends SheetFields<'account'>>({
     triggerRef,
     enabled: account != null && needsTooltip,
     items: [
+      {
+        name: 'account-edit',
+        text: t('Edit account'),
+        onClick: () =>
+          dispatch(
+            pushModal({
+              modal: {
+                name: 'account-menu',
+                options: {
+                  accountId: account.id,
+                },
+              },
+            }),
+          ),
+      },
       {
         name: 'account-rename',
         text: t('Rename'),

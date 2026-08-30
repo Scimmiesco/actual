@@ -116,7 +116,11 @@ describe('sidebar Account context menu', () => {
     fireEvent.contextMenu(screen.getByText('Bank of America'));
 
     expect(store.getState().contextMenu.isOpen).toBe(true);
-    expect(contextMenuItemNames()).toEqual(['account-rename', 'account-close']);
+    expect(contextMenuItemNames()).toEqual([
+      'account-edit',
+      'account-rename',
+      'account-close',
+    ]);
   });
 
   it('renders action button when provided', async () => {

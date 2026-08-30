@@ -18,6 +18,7 @@ import { InitialFocus } from '@actual-app/components/initial-focus';
 import { Input } from '@actual-app/components/input';
 import { Menu } from '@actual-app/components/menu';
 import { Popover } from '@actual-app/components/popover';
+import { Select } from '@actual-app/components/select';
 import { SpaceBetween } from '@actual-app/components/space-between';
 import { styles } from '@actual-app/components/styles';
 import { theme } from '@actual-app/components/theme';
@@ -26,6 +27,7 @@ import { View } from '@actual-app/components/view';
 import { tsToRelativeTime } from '@actual-app/core/shared/util';
 import type {
   AccountEntity,
+  AccountType,
   RuleConditionEntity,
   TransactionEntity,
   TransactionFilterEntity,
@@ -90,6 +92,7 @@ type AccountHeaderProps = {
   >['onToggleExtraBalances'];
   onSaveName: AccountNameFieldProps['onSaveName'];
   saveNameError: AccountNameFieldProps['saveNameError'];
+  onSaveAccount?: (account: AccountEntity) => void;
   onSync: () => void;
   onImport: () => void;
   onMenuSelect: AccountMenuProps['onMenuSelect'];
@@ -157,6 +160,7 @@ export function AccountHeader({
   onToggleExtraBalances,
   onSaveName,
   saveNameError,
+  onSaveAccount,
   onSync,
   onImport,
   onMenuSelect,
@@ -305,6 +309,8 @@ export function AccountHeader({
                 isNameEditable={isNameEditable}
                 saveNameError={saveNameError}
                 onSaveName={onSaveName}
+                onSaveAccount={onSaveAccount}
+                onEditAccount={() => onMenuSelect('edit-account')}
               />
             </View>
 
@@ -618,6 +624,8 @@ type AccountNameFieldProps = {
   isNameEditable: boolean;
   saveNameError?: ReactNode;
   onSaveName: (newName: string) => void;
+  onSaveAccount?: (account: AccountEntity) => void;
+  onEditAccount?: () => void;
 };
 
 function AccountNameField({
@@ -626,6 +634,8 @@ function AccountNameField({
   isNameEditable,
   saveNameError,
   onSaveName,
+  onSaveAccount,
+  onEditAccount,
 }: AccountNameFieldProps) {
   const { t } = useTranslation();
   const [editingName, setEditingName] = useState(false);
@@ -667,7 +677,7 @@ function AccountNameField({
             flexDirection: 'row',
             alignItems: 'center',
             whiteSpace: 'nowrap',
-            gap: 3,
+            gap: 6,
             '& .hover-visible': {
               opacity: 0,
               transition: 'opacity .25s',
@@ -681,7 +691,7 @@ function AccountNameField({
             style={{
               fontSize: 25,
               fontWeight: 500,
-              marginRight: 5,
+              marginRight: 2,
               marginBottom: -1,
             }}
             data-testid="account-name"
@@ -691,7 +701,38 @@ function AccountNameField({
               : accountName}
           </View>
 
-          <View style={{ flexDirection: 'row', width: 50 }}>
+          {account && (
+            <Select<AccountType>
+              options={[
+                ['checking', t('Checking / Standard')],
+                ['credit', t('Credit Card')],
+                ['savings', t('Savings')],
+                ['investment', t('Investment')],
+                ['mortgage', t('Mortgage')],
+                ['debt', t('Debt / Loan')],
+                ['other', t('Other')],
+              ]}
+              value={(account.type as AccountType) || 'checking'}
+              onChange={newType => {
+                onSaveAccount?.({
+                  ...account,
+                  type: newType,
+                });
+              }}
+              style={{
+                fontSize: 12,
+                height: 24,
+                padding: '2px 8px',
+                borderRadius: 6,
+                border: '1px solid ' + theme.formInputBorder,
+                backgroundColor: theme.pillBackground,
+                color: theme.pillText,
+                fontWeight: 500,
+              }}
+            />
+          )}
+
+          <View style={{ flexDirection: 'row', gap: 4, alignItems: 'center' }}>
             {isNameEditable && account && (
               <NotesButton
                 id={`account-${account.id}`}
@@ -714,6 +755,21 @@ function AccountNameField({
                 />
               </Button>
             )}
+            {account && onEditAccount && (
+              <Button
+                variant="bare"
+                aria-label={t('Edit account')}
+                className="hover-visible"
+                onPress={onEditAccount}
+                style={{
+                  fontSize: 12,
+                  color: theme.pageTextSubdued,
+                  padding: '2px 6px',
+                }}
+              >
+                <Trans>Edit</Trans>
+              </Button>
+            )}
           </View>
         </View>
       )}
@@ -730,6 +786,7 @@ type AccountMenuProps = {
   isSorted: boolean;
   onMenuSelect: (
     item:
+      | 'edit-account'
       | 'link'
       | 'unlink'
       | 'close'
