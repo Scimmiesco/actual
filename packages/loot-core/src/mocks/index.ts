@@ -138,14 +138,16 @@ function _generateTransaction(
 ): TransactionEntity {
   return {
     id: data.id || uuidv4(),
-    amount: data.amount || Math.floor(random() * 10000 - 7000),
+    amount:
+      data.amount != null ? data.amount : Math.floor(random() * 10000 - 7000),
     payee: data.payee || 'payed-to',
-    notes: 'Notes',
+    notes: data.notes || 'Notes',
     account: data.account,
     date: data.date || monthUtils.currentDay(),
+    ...(data.charge_date !== undefined && { charge_date: data.charge_date }),
     sort_order: data.sort_order != null ? data.sort_order : 1,
-    cleared: false,
-    reconciled: false,
+    cleared: data.cleared ?? false,
+    reconciled: data.reconciled ?? false,
     ...(data.category && { category: data.category }),
   };
 }

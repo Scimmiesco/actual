@@ -24,7 +24,17 @@ export type AccountEntity = {
   account_sync_source: AccountSyncSource | null;
   last_sync: string | null;
   bank_sync_status: BankSyncStatus | null;
+  type?: AccountType | null;
 };
+
+export type AccountType =
+  | 'checking'
+  | 'savings'
+  | 'credit'
+  | 'investment'
+  | 'mortgage'
+  | 'debt'
+  | 'other';
 
 export type AccountSyncSource = BankSyncProviders;
 

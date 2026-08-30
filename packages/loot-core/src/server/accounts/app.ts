@@ -96,13 +96,17 @@ async function updateAccount({
   name,
   last_reconciled,
   account_group_id,
+  type,
 }: Pick<AccountEntity, 'id' | 'name'> &
-  Partial<Pick<AccountEntity, 'last_reconciled' | 'account_group_id'>>) {
+  Partial<
+    Pick<AccountEntity, 'last_reconciled' | 'account_group_id' | 'type'>
+  >) {
   await db.update('accounts', {
     id,
     name,
     ...(last_reconciled && { last_reconciled }),
     ...(account_group_id !== undefined && { account_group_id }),
+    ...(type !== undefined && { type }),
   });
   return {};
 }
@@ -132,6 +136,7 @@ async function getAccounts(): Promise<AccountEntity[]> {
         last_sync: dbAccount.last_sync ?? null,
         bank_sync_status: dbAccount.bank_sync_status ?? null,
         account_group_id: dbAccount.account_group_id ?? null,
+        type: (dbAccount.type as AccountEntity['type']) ?? null,
       }) satisfies AccountEntity,
   );
 }
@@ -555,16 +560,22 @@ async function createAccount({
   balance = 0,
   offBudget = false,
   closed = false,
+  type = null,
+  accountGroupId = null,
 }: {
   name: string;
   balance?: number | undefined;
   offBudget?: boolean | undefined;
   closed?: boolean | undefined;
+  type?: AccountEntity['type'] | undefined;
+  accountGroupId?: string | null | undefined;
 }) {
   const id: AccountEntity['id'] = await db.insertAccount({
     name,
     offbudget: offBudget ? 1 : 0,
     closed: closed ? 1 : 0,
+    ...(type !== undefined && { type }),
+    ...(accountGroupId !== undefined && { account_group_id: accountGroupId }),
   });
 
   await db.insertPayee({

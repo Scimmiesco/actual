@@ -16,6 +16,7 @@ export type TransactionEntity = {
   payee?: PayeeEntity['id'] | null;
   notes?: string;
   date: string;
+  charge_date?: string | null;
   imported_id?: string;
   imported_payee?: string;
   starting_balance_flag?: boolean;

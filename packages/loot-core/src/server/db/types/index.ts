@@ -182,6 +182,7 @@ export type DbTransaction = {
   isParent: 1 | 0;
   isChild: 1 | 0;
   date: number;
+  charge_date?: number | null;
   acct: DbAccount['id'];
   amount: number;
   sort_order: number;
@@ -291,6 +292,7 @@ export type DbViewTransactionInternal = {
   is_parent: DbTransaction['isParent'];
   is_child: DbTransaction['isChild'];
   date: DbTransaction['date'];
+  charge_date?: DbTransaction['charge_date'];
   account: DbAccount['id'];
   amount: DbTransaction['amount'];
   parent_id: DbTransaction['parent_id'] | null;

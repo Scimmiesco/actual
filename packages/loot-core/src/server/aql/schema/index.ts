@@ -43,6 +43,7 @@ export const schema = {
     payee: f('id', { ref: 'payees' }),
     notes: f('string'),
     date: f('date', { required: true }),
+    charge_date: f('date'),
     imported_id: f('string'),
     error: f('json'),
     imported_payee: f('string'),
@@ -79,6 +80,7 @@ export const schema = {
     last_sync: f('string'),
     bank_sync_status: f('string'),
     account_group_id: f('id', { ref: 'account_groups' }),
+    type: f('string'),
   },
   account_groups: {
     id: f('id'),
