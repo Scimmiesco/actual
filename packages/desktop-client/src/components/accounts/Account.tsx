@@ -16,8 +16,7 @@ import { View } from '@actual-app/components/view';
 import { listen, send } from '@actual-app/core/platform/client/connection';
 import * as undo from '@actual-app/core/platform/client/undo';
 import type { UndoState } from '@actual-app/core/server/undo';
-import { q } from '@actual-app/core/shared/query';
-import type { Query } from '@actual-app/core/shared/query';
+import { q, Query } from '@actual-app/core/shared/query';
 import {
   makeAsNonChildTransactions,
   makeChild,
@@ -190,9 +189,9 @@ function AllTransactions({
   return children(allTransactions, allBalances);
 }
 
-function getField(field?: string) {
+function getField(field?: string, accountType?: AccountEntity['type']) {
   if (!field) {
-    return 'date';
+    return accountType === 'credit' ? 'charge_date' : 'date';
   }
 
   switch (field) {
@@ -226,8 +225,11 @@ type AccountInternalProps = {
   showReconciled: boolean;
   setShowReconciled: (newValue: boolean) => void;
   showGroup: boolean;
+  showChargeDate?: boolean;
   showDateSeparators?: boolean;
   setShowDateSeparators: (newValue: boolean) => void;
+  dateSeparatorGroup?: 'day' | 'month';
+  setDateSeparatorGroup?: (newValue: 'day' | 'month') => void;
   showExtraBalances?: boolean;
   setShowExtraBalances: (newValue: boolean) => void;
   transactionColumns: TransactionTableColumn[];
@@ -283,6 +285,7 @@ type AccountInternalState = {
   prevShowCleared?: boolean | undefined;
   showReconciled: boolean;
   showDateSeparators?: boolean | undefined;
+  dateSeparatorGroup?: 'day' | 'month' | undefined;
   nameError: string;
   isAdding: boolean;
   addingDate?: string | null;
@@ -335,6 +338,7 @@ class AccountInternal extends PureComponent<
       showCleared: props.showCleared,
       showReconciled: props.showReconciled,
       showDateSeparators: props.showDateSeparators,
+      dateSeparatorGroup: props.dateSeparatorGroup,
       nameError: '',
       isAdding: false,
       addingDate: null,
@@ -428,9 +432,19 @@ class AccountInternal extends PureComponent<
       }, 100);
     }
 
-    //Resest sort/filter/search on account change
+    const prevAccount = prevProps.accounts.find(
+      a => a.id === prevProps.accountId,
+    );
+    const currAccount = this.props.accounts.find(
+      a => a.id === this.props.accountId,
+    );
+
+    // Reset sort/filter/search on account change, or refetch when account type changes
     if (this.props.accountId !== prevProps.accountId) {
       this.setState({ sort: null, search: '', filterConditions: [] });
+      this.fetchTransactions(this.state.filterConditions);
+    } else if (prevAccount?.type !== currAccount?.type) {
+      this.fetchTransactions(this.state.filterConditions);
     }
   }
 
@@ -463,8 +477,23 @@ class AccountInternal extends PureComponent<
   };
 
   fetchTransactions = (filterConditions?: ConditionEntity[]) => {
-    const query = this.makeRootTransactionsQuery();
-    this.rootQuery = this.currentQuery = query;
+    const accountId = this.props.accountId;
+    const account = this.props.accounts.find(a => a.id === accountId);
+    this.rootQuery = this.makeRootTransactionsQuery();
+
+    if (this.state.sort !== null) {
+      this.applySort();
+      return;
+    }
+
+    let query = this.rootQuery;
+    if (account?.type === 'credit') {
+      query = query
+        .orderBy({ $coalesce: ['$charge_date', '$date'], $dir: 'desc' })
+        .orderBy({ date: 'desc' });
+    }
+    this.currentQuery = query;
+
     if (filterConditions) void this.applyFilters(filterConditions);
     else this.updateQuery(query);
 
@@ -474,9 +503,7 @@ class AccountInternal extends PureComponent<
   };
 
   makeRootTransactionsQuery = () => {
-    const accountId = this.props.accountId;
-
-    return queries.transactions(accountId);
+    return queries.transactions(this.props.accountId);
   };
 
   updateQuery(query: Query, isFiltered: boolean = false) {
@@ -583,6 +610,7 @@ class AccountInternal extends PureComponent<
           showCleared: nextProps.showCleared,
           showReconciled: nextProps.showReconciled,
           showDateSeparators: nextProps.showDateSeparators,
+          dateSeparatorGroup: nextProps.dateSeparatorGroup,
           reconcileAmount: null,
         },
         () => {
@@ -703,9 +731,10 @@ class AccountInternal extends PureComponent<
     if (this.state.sort === null) {
       return true;
     } else {
-      return (
-        this.state.sort.field === 'date' && this.state.sort.ascDesc === 'desc'
-      );
+      const isDateOrChargeDate =
+        this.state.sort.field === 'date' ||
+        this.state.sort.field === 'charge_date';
+      return isDateOrChargeDate && this.state.sort.ascDesc === 'desc';
     }
   };
 
@@ -821,6 +850,7 @@ class AccountInternal extends PureComponent<
 
   onMenuSelect = async (
     item:
+      | 'edit-account'
       | 'link'
       | 'unlink'
       | 'close'
@@ -830,7 +860,8 @@ class AccountInternal extends PureComponent<
       | 'toggle-reconciled'
       | 'toggle-net-worth-chart'
       | 'manage-columns'
-      | 'toggle-date-separators',
+      | 'toggle-date-separators'
+      | 'toggle-date-separator-group',
   ) => {
     const accountId = this.props.accountId!;
     const account = this.props.accounts.find(
@@ -838,6 +869,22 @@ class AccountInternal extends PureComponent<
     )!;
 
     switch (item) {
+      case 'edit-account':
+        this.props.dispatch(
+          pushModal({
+            modal: {
+              name: 'account-menu',
+              options: {
+                accountId,
+                onSave: this.props.onUpdateAccount,
+                onCloseAccount: () =>
+                  this.props.dispatch(openAccountCloseModal({ accountId })),
+                onReopenAccount: () => this.props.onReopenAccount(accountId),
+              },
+            },
+          }),
+        );
+        break;
       case 'link':
         this.props.dispatch(
           pushModal({
@@ -919,6 +966,16 @@ class AccountInternal extends PureComponent<
           this.setState({ showDateSeparators: true });
         }
         break;
+      case 'toggle-date-separator-group': {
+        const currentGroup =
+          this.state.dateSeparatorGroup ??
+          this.props.dateSeparatorGroup ??
+          'day';
+        const nextGroup = currentGroup === 'month' ? 'day' : 'month';
+        this.props.setDateSeparatorGroup?.(nextGroup);
+        this.setState({ dateSeparatorGroup: nextGroup });
+        break;
+      }
       case 'manage-columns':
         this.onManageColumns();
         break;
@@ -936,7 +993,7 @@ class AccountInternal extends PureComponent<
       .filter(
         column =>
           (column.id !== 'account' || this.showAccountColumn()) &&
-          (column.id !== 'balance' || this.canCalculateBalance()),
+          (column.id !== 'balance' || !this.showAccountColumn()),
       )
       .map(column => {
         // Balance and cleared visibility can be temporarily overridden in
@@ -958,6 +1015,14 @@ class AccountInternal extends PureComponent<
         // than the saved config, so the resolved prop is the source of truth
         if (column.id === 'group') {
           return { ...column, hidden: !this.props.showGroup };
+        }
+        if (column.id === 'charge_date') {
+          const account = this.props.accounts.find(
+            a => a.id === this.props.accountId,
+          );
+          const showChargeDate =
+            this.props.showChargeDate ?? account?.type === 'credit';
+          return { ...column, hidden: !showChargeDate };
         }
         return column;
       });
@@ -1612,13 +1677,24 @@ class AccountInternal extends PureComponent<
       this.currentQuery = this.rootQuery.filter({
         [conditionsOpKey]: [...queryFilters, ...customQueryFilters],
       });
+      const accountId = this.props.accountId;
+      const account = this.props.accounts.find(a => a.id === accountId);
+      if (this.state.sort === null && account?.type === 'credit') {
+        this.currentQuery = this.currentQuery
+          .orderBy({ $coalesce: ['$charge_date', '$date'], $dir: 'desc' })
+          .orderBy({ date: 'desc' });
+      }
 
       this.setState(
         {
           filterConditions: conditions,
         },
         () => {
-          this.updateQuery(this.currentQuery, true);
+          if (this.state.sort !== null) {
+            this.applySort();
+          } else {
+            this.updateQuery(this.currentQuery, true);
+          }
         },
       );
     } else {
@@ -1632,10 +1708,6 @@ class AccountInternal extends PureComponent<
         },
       );
     }
-
-    if (this.state.sort !== null) {
-      this.applySort();
-    }
   };
 
   applySort = (
@@ -1646,99 +1718,60 @@ class AccountInternal extends PureComponent<
   ) => {
     const filterConditions = this.state.filterConditions;
     const isFiltered = filterConditions.length > 0;
-    const sortField = getField(!field ? this.state.sort?.field : field);
+    const account = this.props.accounts.find(
+      a => a.id === this.props.accountId,
+    );
+    const sortField = getField(
+      !field ? this.state.sort?.field : field,
+      account?.type,
+    );
     const sortAscDesc = !ascDesc ? this.state.sort?.ascDesc : ascDesc;
     const sortPrevField = getField(
       !prevField ? this.state.sort?.prevField : prevField,
+      account?.type,
     );
     const sortPrevAscDesc = !prevField
       ? this.state.sort?.prevAscDesc
       : prevAscDesc;
 
-    const sortCurrentQuery = function (
-      that: AccountInternal,
-      sortField: string,
-      sortAscDesc?: 'asc' | 'desc',
-    ) {
-      if (sortField === 'cleared') {
-        that.currentQuery = that.currentQuery.orderBy({
-          reconciled: sortAscDesc,
-        });
-      }
+    const baseQuery = isFiltered ? this.currentQuery : this.rootQuery;
+    let nextQuery = new Query({
+      ...baseQuery.state,
+      orderExpressions: [],
+    });
 
-      that.currentQuery = that.currentQuery.orderBy({
-        [sortField]: sortAscDesc,
-      });
-    };
-
-    const sortRootQuery = function (
-      that: AccountInternal,
-      sortField: string,
-      sortAscDesc?: 'asc' | 'desc',
-    ) {
-      if (sortField === 'cleared') {
-        that.currentQuery = that.rootQuery.orderBy({
-          reconciled: sortAscDesc,
-        });
-        that.currentQuery = that.currentQuery.orderBy({
-          cleared: sortAscDesc,
-        });
-      } else {
-        that.currentQuery = that.rootQuery.orderBy({
-          [sortField]: sortAscDesc,
-        });
-      }
-    };
-
-    // sort by previously used sort field, if any
-    const maybeSortByPreviousField = function (
-      that: AccountInternal,
-      sortPrevField: string,
-      sortPrevAscDesc?: 'asc' | 'desc',
-    ) {
-      if (!sortPrevField) {
-        return;
-      }
-
-      if (sortPrevField === 'cleared') {
-        that.currentQuery = that.currentQuery.orderBy({
-          reconciled: sortPrevAscDesc,
-        });
-      }
-
-      that.currentQuery = that.currentQuery.orderBy({
-        [sortPrevField]: sortPrevAscDesc,
-      });
-    };
-
-    switch (true) {
-      // called by applyFilters to sort an already filtered result
-      case !field:
-        sortCurrentQuery(this, sortField, sortAscDesc);
-        break;
-
-      // called directly from UI by sorting a column.
-      // active filters need to be applied before sorting
-      case isFiltered:
-        void this.applyFilters([...filterConditions]);
-        sortCurrentQuery(this, sortField, sortAscDesc);
-        break;
-
-      // called directly from UI by sorting a column.
-      // no active filters, start a new root query.
-      case !isFiltered:
-        sortRootQuery(this, sortField, sortAscDesc);
-        break;
-
-      default:
+    if (sortField === 'cleared') {
+      nextQuery = nextQuery
+        .orderBy({ reconciled: sortAscDesc })
+        .orderBy({ cleared: sortAscDesc });
+    } else if (sortField === 'charge_date') {
+      nextQuery = nextQuery
+        .orderBy({ $coalesce: ['$charge_date', '$date'], $dir: sortAscDesc })
+        .orderBy({ date: sortAscDesc });
+    } else {
+      nextQuery = nextQuery.orderBy({ [sortField]: sortAscDesc });
     }
 
-    maybeSortByPreviousField(this, sortPrevField, sortPrevAscDesc);
+    if (sortPrevField && sortPrevField !== sortField) {
+      if (sortPrevField === 'cleared') {
+        nextQuery = nextQuery.orderBy({ reconciled: sortPrevAscDesc });
+      } else if (sortPrevField === 'charge_date') {
+        nextQuery = nextQuery
+          .orderBy({
+            $coalesce: ['$charge_date', '$date'],
+            $dir: sortPrevAscDesc,
+          })
+          .orderBy({ date: sortPrevAscDesc });
+      } else {
+        nextQuery = nextQuery.orderBy({ [sortPrevField]: sortPrevAscDesc });
+      }
+    }
 
     // Always add sort_order as a final tiebreaker to maintain stable ordering
     // when transactions have the same values in the sorted column(s)
-    this.currentQuery = this.currentQuery.orderBy({ sort_order: sortAscDesc });
+    nextQuery = nextQuery.orderBy({ sort_order: sortAscDesc });
 
+    this.currentQuery = nextQuery;
     this.updateQuery(this.currentQuery, isFiltered);
   };
 
@@ -1872,13 +1905,18 @@ class AccountInternal extends PureComponent<
                 accountName={accountName}
                 accountsSyncing={accountsSyncing}
                 accounts={accounts}
-                transactions={transactions}
+                transactions={allTransactions}
                 showExtraBalances={showExtraBalances ?? false}
                 showReconciled={showReconciled ?? false}
                 showDateSeparators={
                   this.state.showDateSeparators ??
                   this.props.showDateSeparators ??
                   false
+                }
+                dateSeparatorGroup={
+                  this.state.dateSeparatorGroup ??
+                  this.props.dateSeparatorGroup ??
+                  'day'
                 }
                 showEmptyMessage={showEmptyMessage ?? false}
                 balanceQuery={balanceQuery}
@@ -1940,14 +1978,24 @@ class AccountInternal extends PureComponent<
                   categoryGroups={categoryGroups}
                   payees={payees}
                   balances={allBalances}
-                  showBalances={!!allBalances}
+                  showBalances={Boolean(
+                    this.state.showBalances && !this.showAccountColumn(),
+                  )}
                   showReconciled={showReconciled}
                   showCleared={!!showCleared}
                   showGroup={this.props.showGroup}
+                  showChargeDate={
+                    this.props.showChargeDate ?? account?.type === 'credit'
+                  }
                   showDateSeparators={
                     this.state.showDateSeparators ??
                     this.props.showDateSeparators ??
                     false
+                  }
+                  dateSeparatorGroup={
+                    this.state.dateSeparatorGroup ??
+                    this.props.dateSeparatorGroup ??
+                    'day'
                   }
                   showAccount={this.showAccountColumn()}
                   columnOrder={this.props.columnOrder}
@@ -2083,6 +2131,9 @@ export function Account() {
   const [showDateSeparators, setShowDateSeparators] = useSyncedPref(
     `show-date-separators-${params.id || 'all-accounts'}`,
   );
+  const [dateSeparatorGroup, setDateSeparatorGroup] = useSyncedPref(
+    `date-separator-group-${params.id || 'all-accounts'}`,
+  );
   const [showExtraBalances, setShowExtraBalances] = useSyncedPref(
     `show-extra-balances-${params.id || 'all-accounts'}`,
   );
@@ -2092,6 +2143,7 @@ export function Account() {
     showBalances,
     showCleared,
     showGroup,
+    showChargeDate,
     saveColumns,
   } = useTransactionTableColumns(params.id);
 
@@ -2145,7 +2197,12 @@ export function Account() {
             setShowReconciled={val => setHideReconciled(String(!val))}
             showDateSeparators={String(showDateSeparators) === 'true'}
             setShowDateSeparators={val => setShowDateSeparators(String(val))}
+            dateSeparatorGroup={
+              (dateSeparatorGroup as 'day' | 'month') || 'day'
+            }
+            setDateSeparatorGroup={val => setDateSeparatorGroup(val)}
             showGroup={showGroup}
+            showChargeDate={showChargeDate}
             showExtraBalances={String(showExtraBalances) === 'true'}
             setShowExtraBalances={extraBalances =>
               setShowExtraBalances(String(extraBalances))

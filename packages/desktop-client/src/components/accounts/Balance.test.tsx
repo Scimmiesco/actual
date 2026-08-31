@@ -1,7 +1,10 @@
 import React from 'react';
 
 import type { Query } from '@actual-app/core/shared/query';
-import type { ScheduleEntity } from '@actual-app/core/types/models';
+import type {
+  AccountEntity,
+  ScheduleEntity,
+} from '@actual-app/core/types/models';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 
 import { useCachedSchedules } from '#hooks/useCachedSchedules';
@@ -257,5 +260,66 @@ describe('Balances – header visualization', () => {
       expect(screen.getByText('Cleared total')).toBeInTheDocument();
     });
     expect(screen.getByText('Uncleared total:')).toBeInTheDocument();
+  });
+
+  test('renders CreditCardBalances with Next month as default primary and allows toggling', async () => {
+    vi.mocked(useSheetValue).mockImplementation((binding: unknown) => {
+      const name =
+        typeof binding === 'string'
+          ? binding
+          : (binding as { name?: string })?.name || '';
+      if (name.includes('next-month')) {
+        return -2990;
+      }
+      if (name.includes('current-month')) {
+        return -5990;
+      }
+      if (name.includes('future')) {
+        return -29900;
+      }
+      if (name.includes('uncleared')) {
+        return -2990;
+      }
+      return -38880;
+    });
+
+    render(
+      <TestProviders>
+        <Balances
+          account={
+            {
+              id: 'acct-credit',
+              name: 'Credit Card',
+              type: 'credit',
+              offbudget: 0,
+              closed: 0,
+              sort_order: 1,
+              tombstone: 0,
+            } as unknown as AccountEntity
+          }
+          balanceQuery={{
+            name: 'balance-query-acct-credit',
+            query: {
+              filter: vi.fn().mockReturnThis(),
+            } as unknown as Query,
+          }}
+          isFiltered={false}
+        />
+      </TestProviders>,
+    );
+
+    // Primary label is Next month by default
+    expect(screen.getByText(/NEXT MONTH/i)).toBeInTheDocument();
+    expect(screen.getByText('Total balance:')).toBeInTheDocument();
+    expect(screen.getByText(/This month/)).toBeInTheDocument();
+    expect(screen.getByText('Future installments:')).toBeInTheDocument();
+
+    const swapButton = screen.getByTestId('toggle-balance-view');
+    fireEvent.click(swapButton);
+
+    await waitFor(() => {
+      expect(screen.getByText('Total balance')).toBeInTheDocument();
+    });
+    expect(screen.getByText(/Next month/)).toBeInTheDocument();
   });
 });

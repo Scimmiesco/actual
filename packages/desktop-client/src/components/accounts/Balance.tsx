@@ -10,7 +10,7 @@ import { q } from '@actual-app/core/shared/query';
 import type { Query } from '@actual-app/core/shared/query';
 import { getScheduledAmount } from '@actual-app/core/shared/schedules';
 import { isPreviewId } from '@actual-app/core/shared/transactions';
-import type { AccountEntity } from '@actual-app/core/types/models';
+import type { AccountEntity, TransactionEntity } from '@actual-app/core/types/models';
 
 import { FinancialText } from '#components/FinancialText';
 import { PrivacyFilter } from '#components/PrivacyFilter';
@@ -22,25 +22,36 @@ import { useSheetValue } from '#hooks/useSheetValue';
 import { useSyncedPref } from '#hooks/useSyncedPref';
 import type { Binding } from '#spreadsheet';
 
+import { CreditCardBalances } from './CreditCardBalances';
+
 type DetailedBalanceProps = {
   name: string;
   balance: number;
   isExactBalance?: boolean;
+  onPress?: () => void;
 };
 
-function DetailedBalance({
+export function DetailedBalance({
   name,
   balance,
   isExactBalance = true,
+  onPress,
 }: DetailedBalanceProps) {
   const format = useFormat();
-  return (
+  const content = (
     <Text
       style={{
         borderRadius: 4,
         padding: '4px 6px',
         color: theme.pillText,
         backgroundColor: theme.pillBackground,
+        cursor: onPress ? 'pointer' : undefined,
+        userSelect: 'none',
+        ':hover': onPress
+          ? {
+              backgroundColor: theme.menuItemBackgroundHover,
+            }
+          : undefined,
       }}
     >
       {name}{' '}
@@ -52,6 +63,24 @@ function DetailedBalance({
       </PrivacyFilter>
     </Text>
   );
+
+  if (onPress) {
+    return (
+      <Button
+        variant="bare"
+        onPress={onPress}
+        style={{
+          padding: 0,
+          backgroundColor: 'transparent',
+          border: 'none',
+        }}
+      >
+        {content}
+      </Button>
+    );
+  }
+
+  return content;
 }
 
 type SelectedBalanceProps = {
@@ -64,67 +93,41 @@ export function SelectedBalance({
   account,
 }: SelectedBalanceProps) {
   const { t } = useTranslation();
-
-  const name = `selected-balance-${[...selectedItems].join('-')}`;
-
-  const rows = useSheetValue<'balance', `selected-transactions-${string}`>({
-    name: name as `selected-transactions-${string}`,
-    query: q('transactions')
-      .filter({
-        id: { $oneof: [...selectedItems] },
-        parent_id: { $oneof: [...selectedItems] },
-      })
-      .select('id'),
-  });
-  const ids = new Set((rows || []).map((r: { id: string }) => r.id));
-
-  const finalIds = [...selectedItems].filter(id => !ids.has(id));
-  let balance = useSheetValue<'balance', `selected-balance-${string}`>({
-    name: (name + '-sum') as `selected-balance-${string}`,
-    query: q('transactions')
-      .filter({ id: { $oneof: finalIds } })
-      .options({ splits: 'all' })
-      .calculate({ $sum: '$amount' }),
-  });
-
-  let scheduleBalance = 0;
-
-  const { isLoading, schedules = [] } = useCachedSchedules();
-
-  if (isLoading) {
-    return null;
-  }
+  const { schedules } = useCachedSchedules();
 
   let isExactBalance = true;
+  let balance = null;
+  let scheduleBalance = 0;
+  let hasSchedule = false;
 
-  for (const id of [...selectedItems].filter(isPreviewId)) {
-    // Preview IDs are in the format `preview/<schedule_id>/<date>`
-    const scheduleId = id.slice(8).split('/')[0];
-    const schedule = schedules.find(s => s.id === scheduleId);
-    if (schedule) {
-      // If a schedule is `between X and Y` then we calculate the average
-      if (schedule._amountOp === 'isbetween') {
-        isExactBalance = false;
-      }
-
-      if (!account || account.id === schedule._account) {
-        scheduleBalance += getScheduledAmount(schedule._amount);
-      } else {
-        scheduleBalance -= getScheduledAmount(schedule._amount);
+  for (const id of selectedItems) {
+    if (isPreviewId(id)) {
+      hasSchedule = true;
+      const parts = id.split('/');
+      const schedule = schedules?.find(s => s.id === parts[1]);
+      if (schedule && schedule._amount != null) {
+        const amount = getScheduledAmount(schedule._amount);
+        if (amount == null) {
+          isExactBalance = false;
+        } else if (typeof amount === 'number') {
+          scheduleBalance += amount;
+        }
       }
     }
   }
 
-  if (typeof balance !== 'number' && !scheduleBalance) {
-    return null;
-  } else {
+  if (account) {
+    balance = balance ?? 0;
+  }
+
+  if (hasSchedule) {
     balance = (balance ?? 0) + scheduleBalance;
   }
 
   return (
     <DetailedBalance
       name={t('Selected balance:')}
-      balance={balance}
+      balance={balance ?? 0}
       isExactBalance={isExactBalance}
     />
   );
@@ -134,7 +137,7 @@ type FilteredBalanceProps = {
   filteredAmount?: number | null;
 };
 
-function FilteredBalance({ filteredAmount }: FilteredBalanceProps) {
+export function FilteredBalance({ filteredAmount }: FilteredBalanceProps) {
   const { t } = useTranslation();
 
   return (
@@ -151,11 +154,26 @@ type BalancesProps = {
   showExtraBalances?: boolean;
   onToggleExtraBalances?: () => void;
   account?: AccountEntity;
+  transactions?: readonly TransactionEntity[];
   isFiltered: boolean;
   filteredAmount?: number | null;
 };
 
-export function Balances({
+export function Balances(props: BalancesProps) {
+  if (props.account?.type === 'credit') {
+    return (
+      <CreditCardBalances
+        {...props}
+        account={props.account}
+        transactions={props.transactions}
+      />
+    );
+  }
+
+  return <StandardBalances {...props} />;
+}
+
+function StandardBalances({
   balanceQuery,
   account,
   isFiltered,
@@ -225,7 +243,8 @@ export function Balances({
         style={{
           flexDirection: 'row',
           alignItems: 'center',
-          gap: 2,
+          gap: 4,
+          minWidth: 160,
         }}
       >
         <Button
@@ -242,9 +261,16 @@ export function Balances({
             paddingBottom: 1,
             flexDirection: 'row',
             alignItems: 'center',
+            minWidth: 130,
           }}
         >
-          <View style={{ flexDirection: 'column', alignItems: 'flex-start' }}>
+          <View
+            style={{
+              flexDirection: 'column',
+              alignItems: 'flex-start',
+              width: '100%',
+            }}
+          >
             <Text
               style={{
                 fontSize: 10,
@@ -253,6 +279,7 @@ export function Balances({
                 color: theme.pageTextSubdued,
                 letterSpacing: 0.5,
                 marginBottom: -2,
+                whiteSpace: 'nowrap',
               }}
             >
               {primaryLabel}
@@ -264,6 +291,7 @@ export function Balances({
                   style={{
                     fontSize: 22,
                     fontWeight: 400,
+                    whiteSpace: 'nowrap',
                     color:
                       props.value < 0
                         ? theme.numberNegative
@@ -297,11 +325,16 @@ export function Balances({
       </View>
 
       {isUnclearedPrimary ? (
-        <DetailedBalance name={t('Cleared total:')} balance={cleared ?? 0} />
+        <DetailedBalance
+          name={t('Cleared total:')}
+          balance={cleared ?? 0}
+          onPress={onTogglePrimaryBalance}
+        />
       ) : (
         <DetailedBalance
           name={t('Uncleared total:')}
           balance={uncleared ?? 0}
+          onPress={onTogglePrimaryBalance}
         />
       )}
 

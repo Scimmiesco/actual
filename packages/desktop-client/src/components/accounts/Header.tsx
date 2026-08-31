@@ -69,6 +69,7 @@ type AccountHeaderProps = {
   showExtraBalances: boolean;
   showReconciled: boolean;
   showDateSeparators?: boolean;
+  dateSeparatorGroup?: 'day' | 'month';
   showEmptyMessage: boolean;
   balanceQuery: ComponentProps<typeof ReconcilingMessage>['balanceQuery'];
   reconcileAmount?: number | null;
@@ -143,6 +144,7 @@ export function AccountHeader({
   showExtraBalances,
   showReconciled,
   showDateSeparators,
+  dateSeparatorGroup,
   showEmptyMessage,
   balanceQuery,
   reconcileAmount,
@@ -319,6 +321,7 @@ export function AccountHeader({
               showExtraBalances={showExtraBalances}
               onToggleExtraBalances={onToggleExtraBalances}
               account={account}
+              transactions={transactions}
               isFiltered={isFiltered}
               filteredAmount={filteredAmount}
             />
@@ -510,6 +513,7 @@ export function AccountHeader({
                       isSorted={isSorted}
                       showReconciled={showReconciled}
                       showDateSeparators={showDateSeparators}
+                      dateSeparatorGroup={dateSeparatorGroup}
                       onMenuSelect={onMenuSelect}
                     />
                   </Dialog>
@@ -558,6 +562,17 @@ export function AccountHeader({
                             ? t('Hide date separators')
                             : t('Show date separators'),
                         },
+                        ...(showDateSeparators
+                          ? [
+                              {
+                                name: 'toggle-date-separator-group',
+                                text:
+                                  dateSeparatorGroup === 'month'
+                                    ? t('Group separators by day')
+                                    : t('Group separators by month'),
+                              } as const,
+                            ]
+                          : []),
                       ]}
                     />
                   </Dialog>
@@ -783,6 +798,7 @@ type AccountMenuProps = {
   showNetWorthChart: boolean;
   showReconciled: boolean;
   showDateSeparators?: boolean;
+  dateSeparatorGroup?: 'day' | 'month';
   isSorted: boolean;
   onMenuSelect: (
     item:
@@ -796,7 +812,8 @@ type AccountMenuProps = {
       | 'toggle-reconciled'
       | 'toggle-net-worth-chart'
       | 'manage-columns'
-      | 'toggle-date-separators',
+      | 'toggle-date-separators'
+      | 'toggle-date-separator-group',
   ) => void;
 };
 
@@ -806,6 +823,7 @@ function AccountMenu({
   showNetWorthChart,
   showReconciled,
   showDateSeparators,
+  dateSeparatorGroup,
   isSorted,
   onMenuSelect,
 }: AccountMenuProps) {
@@ -849,6 +867,17 @@ function AccountMenu({
             ? t('Hide date separators')
             : t('Show date separators'),
         },
+        ...(showDateSeparators
+          ? [
+              {
+                name: 'toggle-date-separator-group',
+                text:
+                  dateSeparatorGroup === 'month'
+                    ? t('Group separators by day')
+                    : t('Group separators by month'),
+              } as const,
+            ]
+          : []),
         { name: 'export', text: t('Export') },
         ...(account && !account.closed
           ? canSync
