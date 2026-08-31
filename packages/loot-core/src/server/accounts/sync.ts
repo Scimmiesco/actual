@@ -900,7 +900,7 @@ export async function matchTransactions(
             (imported_id IS NULL OR ? IS NULL OR imported_id LIKE '%-inst-%')
             AND (
               (date >= ? AND date <= ?)
-              OR (charge_date IS NOT NULL AND charge_date = ?)
+              OR (charge_date IS NOT NULL AND CAST(charge_date / 100 AS INT) = CAST(? / 100 AS INT))
             )
             AND amount = ?
             AND account = ?`,
@@ -936,7 +936,7 @@ export async function matchTransactions(
           WHERE
             (
               (date >= ? AND date <= ?)
-              OR (charge_date IS NOT NULL AND charge_date = ?)
+              OR (charge_date IS NOT NULL AND CAST(charge_date / 100 AS INT) = CAST(? / 100 AS INT))
             )
             AND amount = ?
             AND account = ?`,
@@ -987,19 +987,34 @@ export async function matchTransactions(
   // the same one with high fidelity.
   const transactionsStep2 = transactionsStep1.map(data => {
     if (!data.match && data.fuzzyDataset) {
-      // Try to find one where the payees match.
-      const match =
-        data.fuzzyDataset.find(
-          row =>
-            !hasMatched.has(row.id) &&
-            data.trans.payee === row.payee &&
-            (row.notes && data.trans.notes
-              ? row.notes.slice(0, 7) === data.trans.notes.slice(0, 7)
-              : true),
-        ) ||
-        data.fuzzyDataset.find(
-          row => !hasMatched.has(row.id) && data.trans.payee === row.payee,
-        );
+      // Pass 1: Try exact installment series match (e.g. [1/10] to [1/10])
+      const tTag = data.trans.notes?.match(/^\[\d+\/\d+\]/)?.[0];
+      let match = data.fuzzyDataset.find(row => {
+        if (hasMatched.has(row.id)) return false;
+        if (tTag && row.notes) {
+          const rTag = row.notes.match(/^\[\d+\/\d+\]/)?.[0];
+          if (rTag && rTag === tTag) {
+            return true;
+          }
+        }
+        return false;
+      });
+
+      // Pass 2: Try payee and note match
+      if (!match) {
+        match =
+          data.fuzzyDataset.find(
+            row =>
+              !hasMatched.has(row.id) &&
+              data.trans.payee === row.payee &&
+              (row.notes && data.trans.notes
+                ? row.notes.slice(0, 7) === data.trans.notes.slice(0, 7)
+                : true),
+          ) ||
+          data.fuzzyDataset.find(
+            row => !hasMatched.has(row.id) && data.trans.payee === row.payee,
+          );
+      }
 
       if (match) {
         hasMatched.add(match.id);

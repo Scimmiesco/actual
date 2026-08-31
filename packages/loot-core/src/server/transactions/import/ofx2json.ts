@@ -1,4 +1,5 @@
 // @ts-strict-ignore
+import * as d from 'date-fns';
 import { parseStringPromise } from 'xml2js';
 
 import { dayFromDate } from '#shared/months';
@@ -79,10 +80,30 @@ function getCcStmtTrn(ofx) {
   const result = stmtTrnRs.flatMap(s => {
     const stmtRs = s?.['CCSTMTRS'];
     const ledgerBal = stmtRs?.['LEDGERBAL'];
-    const dtAsOf =
-      ledgerBal?.['DTASOF'] ||
-      stmtRs?.['AVAILBAL']?.['DTASOF'] ||
-      stmtRs?.['BANKTRANLIST']?.['DTEND'];
+    const dtEnd = stmtRs?.['BANKTRANLIST']?.['DTEND'];
+    const rawDtAsOf =
+      ledgerBal?.['DTASOF'] || stmtRs?.['AVAILBAL']?.['DTASOF'] || dtEnd;
+
+    // Credit Card Statement Due Date resolution:
+    // If it is an open/upcoming statement (e.g. Banco do Brasil Próxima Fatura with BALAMT 0.00 and DTASOF === DTEND),
+    // DTASOF is the generation date; the statement charges in the next billing cycle.
+    let dtAsOf = rawDtAsOf;
+    const ledgerBalAmt = parseFloat(ledgerBal?.['BALAMT'] || '0');
+    if (
+      rawDtAsOf &&
+      dtEnd &&
+      rawDtAsOf === dtEnd &&
+      (ledgerBalAmt === 0 || isNaN(ledgerBalAmt))
+    ) {
+      const asOfYear = Number(rawDtAsOf.substring(0, 4));
+      const asOfMonth = Number(rawDtAsOf.substring(4, 6));
+      const nextMonthDate = d.addMonths(
+        new Date(asOfYear, asOfMonth - 1, Number(rawDtAsOf.substring(6, 8))),
+        1,
+      );
+      dtAsOf = d.format(nextMonthDate, 'yyyyMMdd');
+    }
+
     const tranList = stmtRs?.['BANKTRANLIST'];
     const stmtTrn = tranList?.['STMTTRN'];
     return getAsArray(stmtTrn).map(trn => ({
@@ -131,14 +152,24 @@ function mapOfxTransaction(stmtTrn): OFXTransaction {
       )
     : null;
 
+  let amount = stmtTrn['TRNAMT'];
+  const type = stmtTrn['TRNTYPE'];
+  const memo = html2Plain(stmtTrn['MEMO']) || '';
+
+  // In Brazilian banking OFX (e.g. Banco do Brasil), credit card payments (PGTO)
+  // or CREDIT types with negative numbers are credits to the card (inflows/transfers).
+  if (type === 'CREDIT' && parseFloat(amount) < 0) {
+    amount = String(Math.abs(parseFloat(amount)));
+  }
+
   return {
-    amount: stmtTrn['TRNAMT'],
-    type: stmtTrn['TRNTYPE'],
+    amount,
+    type,
     fitId: stmtTrn['FITID'],
     date: dayFromDate(transactionDate),
     charge_date: chargeDate ? dayFromDate(chargeDate) : undefined,
     name: html2Plain(stmtTrn['NAME']),
-    memo: html2Plain(stmtTrn['MEMO']),
+    memo,
   };
 }
 

@@ -315,9 +315,14 @@ async function parseOFX(
       const cleanPayee = cleanText(finalPayeeName);
       const cleanNotes = cleanText(initialNotes);
 
+      let importedId = trans.fitId;
+      if (installment && importedId) {
+        importedId = `${importedId}-inst-${installment.current}`;
+      }
+
       return {
         amount: parsedAmount || 0,
-        imported_id: trans.fitId,
+        imported_id: importedId,
         date: trans.date,
         charge_date: trans.charge_date || null,
         payee_name: cleanPayee,

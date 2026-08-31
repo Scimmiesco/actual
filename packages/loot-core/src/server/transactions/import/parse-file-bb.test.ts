@@ -18,7 +18,7 @@ describe('BB Credit Card OFX Import and Installment Detection', () => {
     const result = await parseFile(filePath, { importNotes: true });
 
     expect(result.errors).toEqual([]);
-    expect(result.transactions?.length).toBe(87);
+    expect(result.transactions?.length).toBe(66);
 
     // Check transactions with installments
     const shein = result.transactions?.find(t =>
@@ -80,14 +80,14 @@ describe('BB Credit Card OFX Import and Installment Detection', () => {
     // 43 transactions in OFX expand into all past and future installments
     expect(result.transactions?.length).toBeGreaterThan(43);
 
-    // KAZA MIX [1/3] expands into [1/3] (current), [2/3] (next month), [3/3] (in 2 months)
+    // KAZA MIX [1/3] expands into [1/3] (current month: Sept), [2/3] (Oct), [3/3] (Nov)
     const kazaMix1 = result.transactions?.find(t =>
       // @ts-expect-error - structured transaction
       t.notes?.includes('[1/3] KAZA MIX'),
     );
     expect(kazaMix1).toBeDefined();
     // @ts-expect-error - structured transaction
-    expect(kazaMix1.charge_date).toBe('2026-08-27');
+    expect(kazaMix1.charge_date).toBe('2026-09-27');
 
     const kazaMix2 = result.transactions?.find(t =>
       // @ts-expect-error - structured transaction
@@ -95,7 +95,7 @@ describe('BB Credit Card OFX Import and Installment Detection', () => {
     );
     expect(kazaMix2).toBeDefined();
     // @ts-expect-error - structured transaction
-    expect(kazaMix2.charge_date).toBe('2026-09-27');
+    expect(kazaMix2.charge_date).toBe('2026-10-27');
     // @ts-expect-error - structured transaction
     expect(kazaMix2.amount).toBe(kazaMix1.amount);
     // @ts-expect-error - structured transaction
@@ -107,16 +107,16 @@ describe('BB Credit Card OFX Import and Installment Detection', () => {
     );
     expect(kazaMix3).toBeDefined();
     // @ts-expect-error - structured transaction
-    expect(kazaMix3.charge_date).toBe('2026-10-27');
+    expect(kazaMix3.charge_date).toBe('2026-11-27');
 
-    // ZP * OLX ALVAR [2/10] expands into [1/10] in July, [2/10] in August, and [3/10]..[10/10] in future months
-    const olx1 = result.transactions?.find(t =>
+    // ZP * OLX ALVAR [2/10] in September expands into [2/10] in Sept, and [3/10]..[10/10] in future months
+    const olx2 = result.transactions?.find(t =>
       // @ts-expect-error - structured transaction
-      t.notes?.includes('[1/10] ZP *OLX ALVAR'),
+      t.notes?.includes('[2/10] ZP *OLX ALVAR'),
     );
-    expect(olx1).toBeDefined();
+    expect(olx2).toBeDefined();
     // @ts-expect-error - structured transaction
-    expect(olx1.charge_date).toBe('2026-07-27');
+    expect(olx2.charge_date).toBe('2026-09-27');
 
     const olx10 = result.transactions?.find(t =>
       // @ts-expect-error - structured transaction
@@ -124,7 +124,7 @@ describe('BB Credit Card OFX Import and Installment Detection', () => {
     );
     expect(olx10).toBeDefined();
     // @ts-expect-error - structured transaction
-    expect(olx10.charge_date).toBe('2027-04-27');
+    expect(olx10.charge_date).toBe('2027-05-27');
   });
 
   it('imports Ago_26.ofx and then Próxima_Fatura.ofx sequentially without duplicates or errors', async () => {
@@ -216,11 +216,41 @@ describe('BB Credit Card OFX Import and Installment Detection', () => {
     const uniqueImportedIds = new Set(importedIds);
     expect(importedIds.length).toBe(uniqueImportedIds.size);
 
-    // Check that no installment series was duplicated (e.g. no two [2/3] for the same purchase)
+    // Monthly breakdown by charge_date
+    const byMonth = new Map<
+      string,
+      { total: number; trans: typeof dbTransAfter2 }
+    >();
+    for (const t of dbTransAfter2) {
+      const cdStr = t.charge_date ? String(t.charge_date) : String(t.date);
+      const m = `${cdStr.slice(0, 4)}-${cdStr.slice(4, 6)}`;
+      const current = byMonth.get(m) || { total: 0, trans: [] };
+      current.total += t.amount;
+      current.trans.push(t);
+      byMonth.set(m, current);
+    }
+
+    // August has exactly 40 transactions with pure August statement expenses (R$ 2180.74 including refunds)
+    const aug = byMonth.get('2026-08');
+    expect(aug).toBeDefined();
+    expect(aug!.trans.length).toBe(40);
+    const augExpenses = aug!.trans
+      .filter(t => t.amount < 0)
+      .reduce((sum, t) => sum + Math.abs(t.amount), 0);
+    expect(augExpenses).toBe(217783);
+
+    // September has exactly 43 transactions (including invoice payment and next installments)
+    const sep = byMonth.get('2026-09');
+    expect(sep).toBeDefined();
+    expect(sep!.trans.length).toBe(43);
+
+    // No duplicate installments exist in any month
     const installmentNotes = new Map<string, number>();
     for (const t of dbTransAfter2) {
       if (t.notes && /^\[\d+\/\d+\]/.test(t.notes)) {
-        const key = `${t.amount}_${t.date}_${t.notes}`;
+        const cdStr = t.charge_date ? String(t.charge_date) : String(t.date);
+        const m = `${cdStr.slice(0, 4)}-${cdStr.slice(4, 6)}`;
+        const key = `${m}_${t.amount}_${t.notes}`;
         installmentNotes.set(key, (installmentNotes.get(key) || 0) + 1);
       }
     }

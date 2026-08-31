@@ -158,7 +158,11 @@ export function expandInstallmentTransaction<T extends ExpandableTransaction>(
   const baseChargeDate = trans.charge_date || trans.date;
   const results: T[] = [];
 
-  for (let k = 1; k <= total; k++) {
+  const baseImportedId = trans.imported_id
+    ? trans.imported_id.replace(/-inst-\d+$/, '')
+    : null;
+
+  for (let k = current; k <= total; k++) {
     if (k === current) {
       results.push(trans);
     } else {
@@ -175,10 +179,8 @@ export function expandInstallmentTransaction<T extends ExpandableTransaction>(
         ...trans,
         charge_date: targetChargeDate,
         notes: targetNotes,
-        imported_id: trans.imported_id
-          ? `${trans.imported_id}-inst-${k}`
-          : null,
-        cleared: k < current,
+        imported_id: baseImportedId ? `${baseImportedId}-inst-${k}` : null,
+        cleared: false,
       };
 
       results.push(generatedTrans);
