@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 // The set of columns in the transaction table, in their default order.
 export const TRANSACTION_TABLE_COLUMN_IDS = [
   'date',
+  'charge_date',
   'account',
   'payee',
   'notes',
@@ -44,7 +45,7 @@ export function isTransactionTableColumnDisplayOnly(
 export function isTransactionTableColumnAvailableInChildRows(
   id: TransactionTableColumnId,
 ): boolean {
-  return id !== 'date' && id !== 'account';
+  return id !== 'date' && id !== 'charge_date' && id !== 'account';
 }
 
 // User-facing column names, shared by the column manager modal and the
@@ -57,6 +58,7 @@ export function useTransactionTableColumnLabels(): Record<
 
   return {
     date: t('Date'),
+    charge_date: t('Charge date'),
     account: t('Account'),
     payee: t('Payee'),
     notes: t('Notes'),
@@ -70,9 +72,9 @@ export function useTransactionTableColumnLabels(): Record<
 }
 
 function isColumnHiddenByDefault(id: TransactionTableColumnId): boolean {
-  // The running balance and category group columns are opt-in, matching the
-  // app's historical default of not showing them
-  return id === 'balance' || id === 'group';
+  // The running balance, category group, and charge date columns are opt-in,
+  // matching the app's historical default of not showing them
+  return id === 'balance' || id === 'group' || id === 'charge_date';
 }
 
 export function getDefaultTransactionTableColumns(): TransactionTableColumn[] {

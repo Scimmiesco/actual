@@ -53,9 +53,30 @@ export function useTransactionTableColumns(accountId: string | undefined) {
   const showGroup = columnsConfig
     ? !transactionColumns.find(column => column.id === 'group')?.hidden
     : String(legacyShowGroup) === 'true';
-  // The balance/cleared/group columns stay in the order even when hidden:
+  const hasExplicitChargeDateInView = useMemo(() => {
+    if (!viewColumnsConfig) {
+      return false;
+    }
+    try {
+      const parsed: unknown = JSON.parse(viewColumnsConfig);
+      return (
+        Array.isArray(parsed) &&
+        parsed.some(
+          c =>
+            c && typeof c === 'object' && 'id' in c && c.id === 'charge_date',
+        )
+      );
+    } catch {
+      return false;
+    }
+  }, [viewColumnsConfig]);
+
+  const showChargeDate = hasExplicitChargeDateInView
+    ? !transactionColumns.find(column => column.id === 'charge_date')?.hidden
+    : undefined;
+  // The balance/cleared/group/charge_date columns stay in the order even when hidden:
   // their visibility is controlled by the show* flags, which can come from
-  // the legacy prefs or component-state overrides instead of the config.
+  // the legacy prefs, account type, or component-state overrides instead of the config.
   const columnOrder = useMemo(
     () =>
       transactionColumns
@@ -64,6 +85,7 @@ export function useTransactionTableColumns(accountId: string | undefined) {
             column.id === 'balance' ||
             column.id === 'cleared' ||
             column.id === 'group' ||
+            column.id === 'charge_date' ||
             !column.hidden,
         )
         .map(column => column.id),
@@ -104,6 +126,7 @@ export function useTransactionTableColumns(accountId: string | undefined) {
     showBalances,
     showCleared,
     showGroup,
+    showChargeDate,
     saveColumns,
   };
 }

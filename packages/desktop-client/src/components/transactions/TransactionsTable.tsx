@@ -126,6 +126,7 @@ import type {
   OnDragChangeCallback,
   OnDropCallback,
 } from '#hooks/useDragDrop';
+import { useLocale } from '#hooks/useLocale';
 import { useLocalPref } from '#hooks/useLocalPref';
 import { useMergedRefs } from '#hooks/useMergedRefs';
 import { usePrevious } from '#hooks/usePrevious';
@@ -138,6 +139,9 @@ import type { SplitsExpandedContextValue } from '#hooks/useSplitsExpanded';
 import { useSyncedPref } from '#hooks/useSyncedPref';
 import { pushModal } from '#modals/modalsSlice';
 import { NotesTagFormatter } from '#notes/NotesTagFormatter';
+import { FinancialText } from '#components/FinancialText';
+import { PrivacyFilter } from '#components/PrivacyFilter';
+import { useFormat } from '#hooks/useFormat';
 import { addNotification } from '#notifications/notificationsSlice';
 import { getPayeesById } from '#payees';
 import { aqlQuery } from '#queries/aqlQuery';
@@ -268,6 +272,13 @@ const TransactionHeader = memo(
     > = {
       date: {
         value: columnLabels.date,
+        width: 110,
+        alignItems: 'flex',
+        marginLeft: -5,
+        sortDirection: 'desc',
+      },
+      charge_date: {
+        value: columnLabels.charge_date,
         width: 110,
         alignItems: 'flex',
         marginLeft: -5,
@@ -1655,6 +1666,60 @@ const Transaction = memo(function Transaction({
             )}
           </CustomCell>
         );
+      case 'charge_date':
+        return isChild ? (
+          <Field
+            key={columnId}
+            /* Charge date blank placeholder for Child transaction */
+            width={110}
+            style={{
+              width: 110,
+              backgroundColor: theme.tableRowBackgroundHover,
+              border: 0,
+            }}
+          />
+        ) : (
+          <CustomCell
+            key={columnId}
+            /* Charge date field for non-child transaction */
+            name="charge_date"
+            width={110}
+            textAlign="flex"
+            exposed={focusedField === 'charge_date'}
+            value={transaction.charge_date || undefined}
+            valueStyle={valueStyle}
+            formatter={date =>
+              date ? formatDate(parseISO(date), dateFormat) : ''
+            }
+            onExpose={name => {
+              if (!isPreview) {
+                onEdit(id, name);
+              }
+            }}
+            onUpdate={value => {
+              onUpdate('charge_date', value);
+            }}
+          >
+            {({
+              onBlur,
+              onKeyDown,
+              onUpdate,
+              onSave,
+              shouldSaveFromKey,
+              inputStyle,
+            }) => (
+              <DateSelect
+                value={transaction.charge_date || ''}
+                dateFormat={dateFormat}
+                inputProps={{ onBlur, onKeyDown, style: inputStyle }}
+                shouldSaveFromKey={shouldSaveFromKey}
+                clearOnBlur
+                onUpdate={onUpdate}
+                onSelect={onSave}
+              />
+            )}
+          </CustomCell>
+        );
       case 'account':
         return isChild ? (
           <Field
@@ -2582,6 +2647,8 @@ type DateSeparatorItem = {
   id: `date-sep-${string}`;
   is_separator: true;
   date: string;
+  isMonthSeparator?: boolean;
+  totalAmount?: number;
 };
 
 type TableRowItem = TransactionEntity | DateSeparatorItem;
@@ -2589,17 +2656,25 @@ type TableRowItem = TransactionEntity | DateSeparatorItem;
 type DateSeparatorRowProps = {
   date: string;
   dateFormat: string;
+  isMonthSeparator?: boolean;
+  totalAmount?: number;
   onAddTransaction?: (date?: string) => void;
 };
 
 function DateSeparatorRow({
   date,
   dateFormat,
+  isMonthSeparator,
+  totalAmount,
   onAddTransaction,
 }: DateSeparatorRowProps) {
   const { t } = useTranslation();
+  const locale = useLocale();
+  const format = useFormat();
   const formattedDate = date
-    ? `${monthUtils.format(date, dateFormat)} - ${monthUtils.format(date, 'EEEE')}`
+    ? isMonthSeparator
+      ? monthUtils.format(`${date.slice(0, 7)}-01`, 'MMMM yyyy', locale)
+      : `${monthUtils.format(date, dateFormat)} - ${monthUtils.format(date, 'EEEE', locale)}`
     : '';
 
   return (
@@ -2620,9 +2695,56 @@ function DateSeparatorRow({
       }}
       data-testid="date-separator-row"
     >
-      <Text style={{ color: theme.tableHeaderText, fontWeight: 600, flex: 1 }}>
+      <Text
+        style={{
+          color: theme.tableHeaderText,
+          fontWeight: 600,
+          flex: 1,
+          textTransform: isMonthSeparator ? 'capitalize' : undefined,
+        }}
+      >
         {formattedDate}
       </Text>
+      {totalAmount !== undefined && (
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 6,
+            marginRight: onAddTransaction ? 12 : 0,
+          }}
+          data-testid="date-separator-total"
+        >
+          <Text
+            style={{
+              fontSize: 11,
+              fontWeight: 500,
+              color: theme.tableHeaderText,
+              opacity: 0.8,
+              textTransform: 'uppercase',
+              letterSpacing: 0.3,
+            }}
+          >
+            {isMonthSeparator ? t('Total:') : t('Total:')}
+          </Text>
+          <PrivacyFilter>
+            <FinancialText
+              style={{
+                fontSize: 13,
+                fontWeight: 700,
+                color:
+                  totalAmount < 0
+                    ? theme.numberNegative
+                    : totalAmount > 0
+                      ? theme.numberPositive
+                      : theme.tableHeaderText,
+              }}
+            >
+              {format(totalAmount, 'financial')}
+            </FinancialText>
+          </PrivacyFilter>
+        </View>
+      )}
       {onAddTransaction && (
         <Button
           variant="bare"
@@ -2666,6 +2788,8 @@ type TransactionTableInnerProps = {
   columns: TransactionTableColumnId[];
   showReconciled: boolean;
   showDateSeparators?: boolean;
+  dateSeparatorGroup?: 'day' | 'month';
+  showChargeDate?: boolean;
   addingDate?: string | null;
   onAddTransaction?: (date?: string) => void;
   currentAccountId: AccountEntity['id'];
@@ -2796,22 +2920,62 @@ function TransactionTableInner({
     if (!props.showDateSeparators) {
       return transactionsToRender;
     }
-    const items: TableRowItem[] = [];
-    let lastDate: string | null = null;
+    const isShowingChargeDate =
+      Boolean(props.showChargeDate) || props.columns.includes('charge_date');
+    const isMonthGrouping = props.dateSeparatorGroup === 'month';
+
+    const groupTotals = new Map<string, number>();
     for (const trans of transactionsToRender) {
-      if (!trans.is_child && trans.date && trans.date !== lastDate) {
-        lastDate = trans.date;
+      if (!trans.is_child) {
+        const transDate =
+          isShowingChargeDate && trans.charge_date
+            ? trans.charge_date
+            : trans.date;
+        const groupKey =
+          isMonthGrouping && transDate ? transDate.slice(0, 7) : transDate;
+        if (groupKey) {
+          groupTotals.set(
+            groupKey,
+            (groupTotals.get(groupKey) || 0) + (trans.amount || 0),
+          );
+        }
+      }
+    }
+
+    const items: TableRowItem[] = [];
+    let lastKey: string | null = null;
+
+    for (const trans of transactionsToRender) {
+      const transDate =
+        isShowingChargeDate && trans.charge_date
+          ? trans.charge_date
+          : trans.date;
+      const groupKey =
+        isMonthGrouping && transDate ? transDate.slice(0, 7) : transDate;
+
+      if (!trans.is_child && transDate && groupKey && groupKey !== lastKey) {
+        lastKey = groupKey;
         const separator: DateSeparatorItem = {
-          id: `date-sep-${trans.date}`,
+          id: `date-sep-${groupKey}`,
           is_separator: true,
-          date: trans.date,
+          date: transDate,
+          isMonthSeparator: isMonthGrouping,
+          totalAmount: isMonthGrouping
+            ? (groupTotals.get(groupKey) ?? 0)
+            : undefined,
         };
         items.push(separator);
       }
       items.push(trans);
     }
     return items;
-  }, [transactionsToRender, props.showDateSeparators]);
+  }, [
+    transactionsToRender,
+    props.showDateSeparators,
+    props.showChargeDate,
+    props.columns,
+    props.dateSeparatorGroup,
+  ]);
 
   const amountColumnWidths = useAmountColumnWidths(
     transactionsToRender,
@@ -2824,10 +2988,13 @@ function TransactionTableInner({
     editing,
   }) => {
     if ('is_separator' in item && item.is_separator) {
+      const sepItem = item as unknown as DateSeparatorItem;
       return (
         <DateSeparatorRow
-          date={(item as unknown as DateSeparatorItem).date}
+          date={sepItem.date}
           dateFormat={dateFormat}
+          isMonthSeparator={sepItem.isMonthSeparator}
+          totalAmount={sepItem.totalAmount}
           onAddTransaction={props.onAddTransaction}
         />
       );
@@ -3113,7 +3280,9 @@ export type TransactionTableProps = {
   showAccount: boolean;
   showCategory: boolean;
   showGroup?: boolean;
+  showChargeDate?: boolean;
   showDateSeparators?: boolean;
+  dateSeparatorGroup?: 'day' | 'month';
   // The full set of columns the user wants visible, in display order. When
   // provided, columns are rendered in this order; the show* flags above
   // still control the availability of the account/category/group/balance/
@@ -3196,6 +3365,7 @@ export const TransactionTable = forwardRef(
       showGroup,
       showBalances,
       showCleared,
+      showChargeDate,
     } = props;
     const visibleColumns = useMemo(
       () =>
@@ -3211,6 +3381,8 @@ export const TransactionTable = forwardRef(
               return showBalances;
             case 'cleared':
               return showCleared;
+            case 'charge_date':
+              return !!showChargeDate;
             default:
               return true;
           }
@@ -3222,6 +3394,7 @@ export const TransactionTable = forwardRef(
         showGroup,
         showBalances,
         showCleared,
+        showChargeDate,
       ],
     );
     const [prevIsAdding, setPrevIsAdding] = useState(false);

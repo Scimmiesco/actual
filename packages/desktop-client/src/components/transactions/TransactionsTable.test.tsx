@@ -164,7 +164,9 @@ type LiveTransactionTableProps = {
   showCategory: boolean;
   showGroup?: boolean;
   showCleared: boolean;
+  showChargeDate?: boolean;
   showDateSeparators?: boolean;
+  dateSeparatorGroup?: 'day' | 'month';
   isAdding: boolean;
   addingDate?: string | null;
   onAddTransaction?: (date?: string) => void;
@@ -235,6 +237,8 @@ function LiveTransactionTable(props: LiveTransactionTableProps) {
                   addNotification={console.log}
                   onSave={onSave}
                   onSplit={onSplit}
+                  showDateSeparators={props.showDateSeparators}
+                  dateSeparatorGroup={props.dateSeparatorGroup}
                   onAdd={onAdd}
                   onAddSplit={onAddSplit}
                   onCreatePayee={onCreatePayee}
@@ -1980,6 +1984,102 @@ describe('Transactions', () => {
       ) as HTMLInputElement;
       expect(dateInput).toBeTruthy();
       expect(dateInput.value).not.toBe('');
+    });
+
+    it('renders the charge date column only when showChargeDate is enabled', () => {
+      const transactions = [
+        ...generateTransaction({
+          account: accounts[0].id,
+          id: 'tx-1',
+          date: '2026-08-26',
+        }),
+      ];
+
+      const { unmount } = renderTransactions({
+        transactions,
+        showChargeDate: false,
+      });
+
+      expect(screen.queryByText('Charge date')).toBeNull();
+
+      unmount();
+
+      renderTransactions({
+        transactions,
+        showChargeDate: true,
+      });
+
+      expect(screen.getByText('Charge date')).toBeInTheDocument();
+    });
+
+    it('groups date separators by charge_date when showChargeDate is true', () => {
+      const transactions = [
+        ...generateTransaction({
+          account: accounts[0].id,
+          id: 'tx-1',
+          date: '2026-08-15',
+          charge_date: '2026-09-05',
+        }),
+        ...generateTransaction({
+          account: accounts[0].id,
+          id: 'tx-2',
+          date: '2026-08-20',
+          charge_date: '2026-09-05',
+        }),
+        ...generateTransaction({
+          account: accounts[0].id,
+          id: 'tx-3',
+          date: '2026-08-15',
+          charge_date: '2026-10-05',
+        }),
+      ];
+
+      renderTransactions({
+        transactions,
+        showDateSeparators: true,
+        showChargeDate: true,
+      });
+
+      const separatorRows = screen.getAllByTestId('date-separator-row');
+      expect(separatorRows).toHaveLength(2);
+      expect(separatorRows[0].textContent).toContain('09/05/2026');
+      expect(separatorRows[1].textContent).toContain('10/05/2026');
+    });
+
+    test('groups date separators by month when dateSeparatorGroup is "month" and displays month total', () => {
+      const transactions = [
+        ...generateTransaction({
+          account: accounts[0].id,
+          id: 'tx-1',
+          date: '2026-09-01',
+          amount: -1000,
+        }),
+        ...generateTransaction({
+          account: accounts[0].id,
+          id: 'tx-2',
+          date: '2026-09-20',
+          amount: -2500,
+        }),
+        ...generateTransaction({
+          account: accounts[0].id,
+          id: 'tx-3',
+          date: '2026-10-15',
+          amount: -1500,
+        }),
+      ];
+
+      renderTransactions({
+        transactions,
+        showDateSeparators: true,
+        dateSeparatorGroup: 'month',
+      });
+
+      const separatorRows = screen.getAllByTestId('date-separator-row');
+      expect(separatorRows).toHaveLength(2);
+      expect(separatorRows[0].textContent).toMatch(/September 2026/i);
+      expect(separatorRows[0].textContent).toContain('-35.00');
+      expect(separatorRows[1].textContent).toMatch(/October 2026/i);
+      expect(separatorRows[1].textContent).toContain('-15.00');
     });
   });
 });

@@ -43,6 +43,8 @@ export type SyncedPrefs = Partial<
     | `show-group-${string}`
     | 'show-date-separators'
     | `show-date-separators-${string}`
+    | 'date-separator-group'
+    | `date-separator-group-${string}`
     | 'primary-balance-view'
     | `primary-balance-view-${string}`
     | 'sidebar.onbudget-balance-view'

@@ -110,6 +110,7 @@ type TransactionListProps = Pick<
   | 'showAccount'
   | 'showBalances'
   | 'showCleared'
+  | 'showChargeDate'
   | 'showGroup'
   | 'showReconciled'
   | 'showSelection'
@@ -124,6 +125,7 @@ type TransactionListProps = Pick<
   isFiltered?: boolean;
   allowReorder?: boolean;
   showDateSeparators?: boolean;
+  dateSeparatorGroup?: 'day' | 'month';
   addingDate?: string | null;
   onAddTransaction?: (date?: string) => void;
   onChange: (
@@ -150,10 +152,12 @@ export function TransactionList({
   showBalances,
   showReconciled,
   showCleared,
+  showChargeDate,
   showGroup,
   showAccount,
   columnOrder,
   showDateSeparators,
+  dateSeparatorGroup,
   isAdding,
   addingDate,
   isNew,
@@ -211,7 +215,9 @@ export function TransactionList({
         transactionsLatest.current = changes.data;
 
         if (changes.diff.updated.length > 0) {
-          const dateChanged = !!changes.diff.updated[0].date;
+          const dateChanged = Boolean(
+            changes.diff.updated[0].date || changes.diff.updated[0].charge_date,
+          );
           if (dateChanged) {
             changes.diff.updated[0].sort_order = Date.now();
             await saveDiff(changes.diff, isLearnCategoriesEnabled);
@@ -530,10 +536,12 @@ export function TransactionList({
         showBalances={showBalances}
         showReconciled={showReconciled}
         showCleared={showCleared}
+        showChargeDate={showChargeDate ?? account?.type === 'credit'}
         showAccount={showAccount}
         showCategory
         showGroup={showGroup}
         showDateSeparators={showDateSeparators}
+        dateSeparatorGroup={dateSeparatorGroup}
         columnOrder={columnOrder}
         currentAccountId={account && account.id}
         currentCategoryId={category && category.id}
