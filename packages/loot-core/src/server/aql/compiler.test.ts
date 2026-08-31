@@ -404,13 +404,14 @@ describe('sheet language', () => {
           { 'payee.name': 'desc' },
           { $substr: ['$payee.name', 0, 4] },
           { $substr: ['$payee.name', 0, 4], $dir: 'desc' },
+          { $coalesce: ['$date', '$payee.name'], $dir: 'asc' },
         ])
         .select('id')
         .serialize(),
       schemaWithRefs,
     );
     expect(result.sql).toMatch(
-      'ORDER BY payees1.id, payees1.name desc, SUBSTR(payees1.name, 0, 4), SUBSTR(payees1.name, 0, 4) desc',
+      'ORDER BY payees1.id, payees1.name desc, SUBSTR(payees1.name, 0, 4), SUBSTR(payees1.name, 0, 4) desc, COALESCE(transactions.date, payees1.name) asc',
     );
   });
 

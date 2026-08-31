@@ -632,6 +632,12 @@ const compileFunction = saveStack('function', (state, func) => {
       const [arg1] = valArray(state, args, ['string']);
       return typed(`${arg1} COLLATE NOCASE`, args[0].type);
 
+    case '$coalesce': {
+      validateArgLength(args, 1, Infinity);
+      const compiledArgs = valArray(state, args);
+      return typed(`COALESCE(${compiledArgs.join(', ')})`, args[0].type);
+    }
+
     case '$literal': {
       validateArgLength(args, 1);
       if (!args[0].literal) {

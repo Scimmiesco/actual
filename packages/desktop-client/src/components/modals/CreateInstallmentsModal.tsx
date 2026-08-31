@@ -91,6 +91,7 @@ export function CreateInstallmentsModal({
     setIsSubmitting(true);
 
     try {
+      const baseSortOrder = transaction.sort_order ?? Date.now();
       const firstInstallment = installments[0];
       const updatedTx = {
         ...transaction,
@@ -98,20 +99,24 @@ export function CreateInstallmentsModal({
         date: purchaseDate,
         charge_date: firstInstallment.charge_date,
         notes: firstInstallment.notes,
+        sort_order: baseSortOrder,
       };
 
-      const addedTxs: TransactionEntity[] = installments.slice(1).map(inst => ({
-        id: uuidv4(),
-        account: transaction.account,
-        date: purchaseDate,
-        charge_date: inst.charge_date,
-        amount: inst.amount,
-        payee: transaction.payee,
-        category: transaction.category,
-        notes: inst.notes,
-        cleared: false,
-        reconciled: false,
-      }));
+      const addedTxs: TransactionEntity[] = installments
+        .slice(1)
+        .map((inst, i) => ({
+          id: uuidv4(),
+          account: transaction.account,
+          date: purchaseDate,
+          charge_date: inst.charge_date,
+          amount: inst.amount,
+          payee: transaction.payee,
+          category: transaction.category,
+          notes: inst.notes,
+          cleared: false,
+          reconciled: false,
+          sort_order: baseSortOrder - (i + 1),
+        }));
 
       await send('transactions-batch-update', {
         updated: [updatedTx],
