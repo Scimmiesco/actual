@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { SvgDownAndRightArrow } from '@actual-app/components/icons/v2';
 import { SpaceBetween } from '@actual-app/components/space-between';
 import { styles } from '@actual-app/components/styles';
+import { Text } from '@actual-app/components/text';
 import { theme } from '@actual-app/components/theme';
 import { Tooltip } from '@actual-app/components/tooltip';
 import { View } from '@actual-app/components/view';
@@ -204,7 +205,21 @@ export function Transaction({
             date={transaction.date}
           />
         ) : (
-          formatDate(transaction.date ?? null, dateFormat)
+          <View style={{ gap: 2 }}>
+            <Text>{formatDate(transaction.date ?? null, dateFormat)}</Text>
+            {transaction.charge_date && (
+              <Text
+                style={{
+                  fontSize: 11,
+                  color: theme.pageTextSubdued,
+                }}
+              >
+                {t('Charge: {{date}}', {
+                  date: formatDate(transaction.charge_date, dateFormat),
+                })}
+              </Text>
+            )}
+          </View>
         )}
       </Field>
       <Field

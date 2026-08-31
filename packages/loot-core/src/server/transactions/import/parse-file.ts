@@ -5,6 +5,11 @@ import * as fs from '#platform/server/fs';
 import { logger } from '#platform/server/log';
 import { looselyParseAmount } from '#shared/util';
 
+import {
+  expandInstallments,
+  formatInstallmentNote,
+  parseInstallmentInfo,
+} from './installments';
 import { ofx2json } from './ofx2json';
 import { qif2json } from './qif2json';
 import { xmlCAMT2json } from './xmlcamt2json';
@@ -48,6 +53,7 @@ function parseOfxAmount(amount: string): number | null {
 type StructuredTransaction = {
   amount: number;
   date: string;
+  charge_date?: string | null;
   payee_name: string;
   imported_payee: string;
   notes: string;
@@ -73,6 +79,7 @@ export type ParseFileOptions = {
   skipStartLines?: number;
   skipEndLines?: number;
   importNotes?: boolean;
+  expandInstallments?: boolean;
 };
 
 export async function parseFile(
@@ -82,29 +89,50 @@ export async function parseFile(
   const errors = Array<ParseError>();
   const m = filepath.match(/\.[^.]*$/);
 
+  let result: ParseFileResult | null = null;
   if (m) {
     const ext = m[0];
 
     switch (ext.toLowerCase()) {
       case '.qif':
-        return parseQIF(filepath, options);
+        result = await parseQIF(filepath, options);
+        break;
       case '.csv':
       case '.tsv':
-        return parseCSV(filepath, options);
+        result = await parseCSV(filepath, options);
+        break;
       case '.ofx':
       case '.qfx':
-        return parseOFX(filepath, options);
+        result = await parseOFX(filepath, options);
+        break;
       case '.xml':
-        return parseCAMT(filepath, options);
+        result = await parseCAMT(filepath, options);
+        break;
       default:
     }
   }
 
-  errors.push({
-    message: 'Invalid file type',
-    internal: '',
-  });
-  return { errors, transactions: [] };
+  if (!result) {
+    errors.push({
+      message: 'Invalid file type',
+      internal: '',
+    });
+    return { errors, transactions: [] };
+  }
+
+  if (
+    result.transactions &&
+    options.expandInstallments !== false &&
+    !Array.isArray(result.transactions[0]) &&
+    result.transactions[0] != null &&
+    'amount' in result.transactions[0]
+  ) {
+    result.transactions = expandInstallments(
+      result.transactions as StructuredTransaction[],
+    );
+  }
+
+  return result;
 }
 
 async function parseCSV(
@@ -184,15 +212,37 @@ async function parseQIF(
         const memoSource = swap ? trans.payee : trans.memo;
         const fallbackUsed = !payeeSource && swap;
 
+        const effectivePayee =
+          payeeSource || (fallbackUsed ? memoSource : null);
+        let initialNotes =
+          options.importNotes && !fallbackUsed ? memoSource || null : null;
+
+        const textToScan = [memoSource, payeeSource].filter(Boolean).join(' ');
+        const installment = parseInstallmentInfo(textToScan);
+
+        let finalPayeeName = effectivePayee;
+        if (installment) {
+          if (effectivePayee) {
+            const payeeInstallment = parseInstallmentInfo(effectivePayee);
+            if (payeeInstallment) {
+              finalPayeeName = payeeInstallment.cleanedText || effectivePayee;
+            }
+          }
+          initialNotes = formatInstallmentNote(
+            initialNotes,
+            installment,
+            memoSource || effectivePayee,
+          );
+        }
+
         return {
           amount:
             trans.amount != null ? looselyParseAmount(trans.amount) : null,
           date: trans.date,
-          payee_name: payeeSource || (fallbackUsed ? memoSource : null),
-          imported_payee: payeeSource || (fallbackUsed ? memoSource : null),
+          payee_name: finalPayeeName,
+          imported_payee: finalPayeeName,
           category: trans.subcategory || trans.category || null,
-          notes:
-            options.importNotes && !fallbackUsed ? memoSource || null : null,
+          notes: initialNotes,
         };
       })
       .filter(trans => trans.date != null && trans.amount != null),
@@ -219,7 +269,7 @@ async function parseOFX(
 
   // Banks don't always implement the OFX standard properly
   // If no payee is available try and fallback to memo
-  const useMemoFallback = options.fallbackMissingPayeeToMemo;
+  const useMemoFallback = options.fallbackMissingPayeeToMemo ?? true;
   const swap = options.swapPayeeAndMemo;
 
   return {
@@ -237,13 +287,42 @@ async function parseOFX(
       const memoSource = swap ? trans.name : trans.memo;
       const fallbackUsed = !payeeSource && useMemoFallback;
 
+      const effectivePayee = payeeSource || (fallbackUsed ? memoSource : null);
+      let initialNotes =
+        options.importNotes !== false ? memoSource || null : null;
+
+      const textToScan = [memoSource, payeeSource].filter(Boolean).join(' ');
+      const installment = parseInstallmentInfo(textToScan);
+
+      let finalPayeeName = effectivePayee;
+      if (installment) {
+        if (effectivePayee) {
+          const payeeInstallment = parseInstallmentInfo(effectivePayee);
+          if (payeeInstallment) {
+            finalPayeeName = payeeInstallment.cleanedText || effectivePayee;
+          }
+        }
+        initialNotes = formatInstallmentNote(
+          initialNotes,
+          installment,
+          memoSource || effectivePayee,
+        );
+      }
+
+      const cleanText = (s: string | null | undefined) =>
+        s ? s.replace(/\s+/g, ' ').trim() : null;
+
+      const cleanPayee = cleanText(finalPayeeName);
+      const cleanNotes = cleanText(initialNotes);
+
       return {
         amount: parsedAmount || 0,
         imported_id: trans.fitId,
         date: trans.date,
-        payee_name: payeeSource || (fallbackUsed ? memoSource : null),
-        imported_payee: payeeSource || (fallbackUsed ? memoSource : null),
-        notes: options.importNotes && !fallbackUsed ? memoSource || null : null,
+        charge_date: trans.charge_date || null,
+        payee_name: cleanPayee,
+        imported_payee: cleanPayee,
+        notes: cleanNotes,
       };
     }),
   };
@@ -277,11 +356,33 @@ async function parseCAMT(
       const memoSource = swap ? trans.payee_name : trans.notes;
       const fallbackUsed = !payeeSource && swap;
 
+      const effectivePayee = payeeSource || (fallbackUsed ? memoSource : null);
+      let initialNotes =
+        options.importNotes && !fallbackUsed ? memoSource || null : null;
+
+      const textToScan = [memoSource, payeeSource].filter(Boolean).join(' ');
+      const installment = parseInstallmentInfo(textToScan);
+
+      let finalPayeeName = effectivePayee;
+      if (installment) {
+        if (effectivePayee) {
+          const payeeInstallment = parseInstallmentInfo(effectivePayee);
+          if (payeeInstallment) {
+            finalPayeeName = payeeInstallment.cleanedText || effectivePayee;
+          }
+        }
+        initialNotes = formatInstallmentNote(
+          initialNotes,
+          installment,
+          memoSource || effectivePayee,
+        );
+      }
+
       return {
         ...trans,
-        payee_name: payeeSource || (fallbackUsed ? memoSource : null),
-        imported_payee: payeeSource || (fallbackUsed ? memoSource : null),
-        notes: options.importNotes && !fallbackUsed ? memoSource || null : null,
+        payee_name: finalPayeeName,
+        imported_payee: finalPayeeName,
+        notes: initialNotes,
       };
     }),
   };

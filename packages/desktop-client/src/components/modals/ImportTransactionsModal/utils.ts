@@ -137,7 +137,8 @@ export type ImportTransaction = {
   notes?: string;
   category?: string;
   date?: string;
-} & Record<string, string | number | boolean>;
+  charge_date?: string | null;
+} & Record<string, string | number | boolean | null | undefined>;
 
 type ImportCategory = {
   id: string;
@@ -157,6 +158,7 @@ export function parseCategoryFields(
 
 export type FieldMapping = {
   date: string | null;
+  charge_date?: string | null;
   amount: string | null;
   payee: string | null;
   notes: string | null;

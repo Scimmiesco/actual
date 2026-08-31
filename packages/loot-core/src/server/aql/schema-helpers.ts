@@ -21,9 +21,12 @@ export function convertInputType(value, type) {
 
   switch (type) {
     case 'date':
-      if (value instanceof Date) {
+      if (typeof value === 'number') {
+        return value;
+      } else if (value instanceof Date) {
         return toDateRepr(dayFromDate(value));
       } else if (
+        typeof value !== 'string' ||
         value.match(/^\d{4}-\d{2}-\d{2}$/) == null ||
         value < '1995-01-01'
       ) {

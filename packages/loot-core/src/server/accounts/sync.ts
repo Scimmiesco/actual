@@ -582,6 +582,7 @@ async function normalizeBankSyncTransactions(transactions, acctId) {
         payee: trans.payee,
         account: trans.account,
         date,
+        charge_date: trans.charge_date ?? null,
         notes: importNotes && notes ? notes.trim().replace(/#/g, '##') : null,
         category: categoryIds.has(trans.category) ? trans.category : null,
         imported_id,
@@ -678,6 +679,9 @@ export async function reconcileTransactions(
         ...match,
         cleared: match.cleared === 1,
         date: db.fromDateRepr(match.date),
+        charge_date: match.charge_date
+          ? db.fromDateRepr(match.charge_date)
+          : null,
       };
 
       // Update the transaction
@@ -687,6 +691,7 @@ export async function reconcileTransactions(
         category: existing.category || trans.category || null,
         imported_payee: trans.imported_payee || null,
         notes: existing.notes || trans.notes || null,
+        charge_date: trans.charge_date || existing.charge_date || null,
         cleared: existing.cleared || trans.cleared || false,
         raw_synced_data:
           existing.raw_synced_data ?? trans.raw_synced_data ?? null,
@@ -864,6 +869,10 @@ export async function matchTransactions(
       // fields.
       const sevenDaysBefore = db.toDateRepr(monthUtils.subDays(trans.date, 7));
       const sevenDaysAfter = db.toDateRepr(monthUtils.addDays(trans.date, 7));
+      const chargeDateRepr = trans.charge_date
+        ? db.toDateRepr(trans.charge_date)
+        : null;
+
       // strictIdChecking has the added behaviour of only matching on transactions with no import ID
       // if the transaction being imported has an import ID.
       if (strictIdChecking) {
@@ -873,6 +882,7 @@ export async function matchTransactions(
             | 'id'
             | 'is_parent'
             | 'date'
+            | 'charge_date'
             | 'imported_id'
             | 'payee'
             | 'imported_payee'
@@ -883,17 +893,22 @@ export async function matchTransactions(
             | 'amount'
           >
         >(
-          `SELECT id, is_parent, date, imported_id, payee, imported_payee, category, notes, reconciled, cleared, amount
+          `SELECT id, is_parent, date, charge_date, imported_id, payee, imported_payee, category, notes, reconciled, cleared, amount
           FROM v_transactions
           WHERE
-            -- If both ids are set, and we didn't match earlier then skip dedup
-            (imported_id IS NULL OR ? IS NULL)
-            AND date >= ? AND date <= ? AND amount = ?
+            -- If both ids are set, and we didn't match earlier then skip dedup (unless generated installment)
+            (imported_id IS NULL OR ? IS NULL OR imported_id LIKE '%-inst-%')
+            AND (
+              (date >= ? AND date <= ?)
+              OR (charge_date IS NOT NULL AND charge_date = ?)
+            )
+            AND amount = ?
             AND account = ?`,
           [
             trans.imported_id || null,
             sevenDaysBefore,
             sevenDaysAfter,
+            chargeDateRepr,
             trans.amount || 0,
             acctId,
           ],
@@ -905,6 +920,7 @@ export async function matchTransactions(
             | 'id'
             | 'is_parent'
             | 'date'
+            | 'charge_date'
             | 'imported_id'
             | 'payee'
             | 'imported_payee'
@@ -915,10 +931,22 @@ export async function matchTransactions(
             | 'amount'
           >
         >(
-          `SELECT id, is_parent, date, imported_id, payee, imported_payee, category, notes, reconciled, cleared, amount
+          `SELECT id, is_parent, date, charge_date, imported_id, payee, imported_payee, category, notes, reconciled, cleared, amount
           FROM v_transactions
-          WHERE date >= ? AND date <= ? AND amount = ? AND account = ?`,
-          [sevenDaysBefore, sevenDaysAfter, trans.amount || 0, acctId],
+          WHERE
+            (
+              (date >= ? AND date <= ?)
+              OR (charge_date IS NOT NULL AND charge_date = ?)
+            )
+            AND amount = ?
+            AND account = ?`,
+          [
+            sevenDaysBefore,
+            sevenDaysAfter,
+            chargeDateRepr,
+            trans.amount || 0,
+            acctId,
+          ],
         );
       }
 
@@ -926,15 +954,15 @@ export async function matchTransactions(
       // transactions date. i.e. if the original transaction is in 21-02-2024 and
       // the matched transactions are: 20-02-2024, 21-02-2024, 29-02-2024 then
       // the resulting data-set should be: 21-02-2024, 20-02-2024, 29-02-2024.
-      fuzzyDataset = fuzzyDataset.sort((a, b) => {
+      fuzzyDataset.sort((a, b) => {
         const aDistance = Math.abs(
-          dateFns.differenceInMilliseconds(
+          dateFns.differenceInCalendarDays(
             dateFns.parseISO(trans.date),
             dateFns.parseISO(db.fromDateRepr(a.date)),
           ),
         );
         const bDistance = Math.abs(
-          dateFns.differenceInMilliseconds(
+          dateFns.differenceInCalendarDays(
             dateFns.parseISO(trans.date),
             dateFns.parseISO(db.fromDateRepr(b.date)),
           ),
@@ -953,16 +981,25 @@ export async function matchTransactions(
   }
 
   // Next, do the fuzzy matching. This first pass matches based on the
-  // payee id. We do this in multiple passes so that higher fidelity
+  // payee id and notes. We do this in multiple passes so that higher fidelity
   // matching always happens first, i.e. a transaction should match
   // match with low fidelity if a later transaction is going to match
   // the same one with high fidelity.
   const transactionsStep2 = transactionsStep1.map(data => {
     if (!data.match && data.fuzzyDataset) {
       // Try to find one where the payees match.
-      const match = data.fuzzyDataset.find(
-        row => !hasMatched.has(row.id) && data.trans.payee === row.payee,
-      );
+      const match =
+        data.fuzzyDataset.find(
+          row =>
+            !hasMatched.has(row.id) &&
+            data.trans.payee === row.payee &&
+            (row.notes && data.trans.notes
+              ? row.notes.slice(0, 7) === data.trans.notes.slice(0, 7)
+              : true),
+        ) ||
+        data.fuzzyDataset.find(
+          row => !hasMatched.has(row.id) && data.trans.payee === row.payee,
+        );
 
       if (match) {
         hasMatched.add(match.id);

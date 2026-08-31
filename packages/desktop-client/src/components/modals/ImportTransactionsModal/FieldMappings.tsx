@@ -24,6 +24,7 @@ export function FieldMappings({
   transactions,
   mappings = {
     date: null,
+    charge_date: null,
     amount: null,
     payee: null,
     notes: null,
@@ -55,6 +56,16 @@ export function FieldMappings({
             options={options}
             value={mappings.date}
             onChange={name => onChange('date', name)}
+            hasHeaderRow={hasHeaderRow}
+            firstTransaction={transactions[0]}
+          />
+        </View>
+        <View style={{ flex: 1 }}>
+          <SubLabel title={t('Charge Date')} />
+          <SelectField
+            options={options}
+            value={mappings.charge_date ?? null}
+            onChange={name => onChange('charge_date', name)}
             hasHeaderRow={hasHeaderRow}
             firstTransaction={transactions[0]}
           />

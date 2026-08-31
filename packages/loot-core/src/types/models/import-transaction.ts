@@ -9,6 +9,9 @@ export type ImportTransactionEntity = {
   /** Required. Transaction date in YYYY-MM-DD format */
   date: string;
 
+  /** Optional statement/bill charge date in YYYY-MM-DD format for credit cards */
+  charge_date?: string | null;
+
   /** A currency amount as an integer representing the value without decimal places.
    * For example, USD amount of $120.30 would be 12030 */
   amount?: number;

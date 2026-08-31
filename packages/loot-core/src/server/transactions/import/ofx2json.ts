@@ -8,6 +8,7 @@ type OFXTransaction = {
   fitId: string;
   name: string;
   date: string;
+  charge_date?: string;
   memo: string;
   type: string;
 };
@@ -77,9 +78,17 @@ function getCcStmtTrn(ofx) {
   const stmtTrnRs = getAsArray(msg?.['CCSTMTTRNRS']);
   const result = stmtTrnRs.flatMap(s => {
     const stmtRs = s?.['CCSTMTRS'];
+    const ledgerBal = stmtRs?.['LEDGERBAL'];
+    const dtAsOf =
+      ledgerBal?.['DTASOF'] ||
+      stmtRs?.['AVAILBAL']?.['DTASOF'] ||
+      stmtRs?.['BANKTRANLIST']?.['DTEND'];
     const tranList = stmtRs?.['BANKTRANLIST'];
     const stmtTrn = tranList?.['STMTTRN'];
-    return getAsArray(stmtTrn);
+    return getAsArray(stmtTrn).map(trn => ({
+      ...trn,
+      _dtAsOf: dtAsOf,
+    }));
   });
   return result;
 }
@@ -113,11 +122,21 @@ function mapOfxTransaction(stmtTrn): OFXTransaction {
       )
     : null;
 
+  const dtAsOf = stmtTrn['_dtAsOf'];
+  const chargeDate = dtAsOf
+    ? new Date(
+        Number(dtAsOf.substring(0, 4)),
+        Number(dtAsOf.substring(4, 6)) - 1,
+        Number(dtAsOf.substring(6, 8)),
+      )
+    : null;
+
   return {
     amount: stmtTrn['TRNAMT'],
     type: stmtTrn['TRNTYPE'],
     fitId: stmtTrn['FITID'],
     date: dayFromDate(transactionDate),
+    charge_date: chargeDate ? dayFromDate(chargeDate) : undefined,
     name: html2Plain(stmtTrn['NAME']),
     memo: html2Plain(stmtTrn['MEMO']),
   };

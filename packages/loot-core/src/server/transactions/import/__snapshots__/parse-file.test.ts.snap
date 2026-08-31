@@ -573,7 +573,7 @@ exports[`File import > ofx import works (credit card) 1`] = `
     "acct": "one",
     "amount": -600,
     "category": null,
-    "charge_date": null,
+    "charge_date": 20230331,
     "cleared": 1,
     "date": 20230330,
     "description": "id2",
