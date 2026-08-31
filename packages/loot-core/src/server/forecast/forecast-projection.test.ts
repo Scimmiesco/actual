@@ -98,4 +98,51 @@ describe('forecast projection', () => {
       accountName: '',
     });
   });
+
+  it('uses charge_date when available for credit card installment projection', () => {
+    const accounts: AccountWithComputedBalance[] = [
+      {
+        id: 'credit-acct',
+        name: 'Credit Card',
+        closed: 0,
+        offbudget: 0,
+        balance_current: -50,
+      },
+    ];
+    const transactions: TransactionEntity[] = [
+      {
+        id: 'installment-1',
+        account: 'credit-acct',
+        amount: -50,
+        date: '2024-02-15', // purchased in Feb
+        charge_date: '2024-03-10', // charged in Mar
+      },
+    ];
+    const filterInfo: ForecastFilterInfo = {
+      filters: [],
+      conditionsOpKey: '$and',
+      canRestrictAccounts: false,
+    };
+    const dateContext: ForecastDateContext = {
+      forecastStartDate: '2024-03-01',
+      forecastEndDate: '2024-03-15',
+      forecastDays: ['2024-03-09', '2024-03-10', '2024-03-11'],
+      firstForecastDate: '2024-03-01',
+      endDateObj: new Date('2024-03-15T00:00:00'),
+    };
+
+    const result = projectForecastData({
+      accounts,
+      transactions,
+      futureOccurrences: [],
+      filterInfo,
+      dateContext,
+    });
+
+    const march10Point = result.dataPoints.find(p => p.date === '2024-03-10');
+    expect(march10Point).toBeDefined();
+    expect(march10Point?.transactions).toMatchObject([
+      { amount: -50, scheduleName: 'Transaction' },
+    ]);
+  });
 });

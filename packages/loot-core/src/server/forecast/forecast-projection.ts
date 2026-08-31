@@ -182,19 +182,22 @@ function summarizePostedTransactions(
   };
 
   for (const tx of accountTransactions) {
-    if (tx.date < forecastStartDate) {
+    const effectiveDate = tx.charge_date || tx.date;
+
+    if (effectiveDate < forecastStartDate) {
       summary.startingBalance += tx.amount;
       continue;
     }
 
-    if (tx.date > forecastEndDate) {
+    if (effectiveDate > forecastEndDate) {
       continue;
     }
 
-    summary.txsByDay[tx.date] = (summary.txsByDay[tx.date] || 0) + tx.amount;
+    summary.txsByDay[effectiveDate] =
+      (summary.txsByDay[effectiveDate] || 0) + tx.amount;
 
-    if (!summary.transactionsByDay[tx.date]) {
-      summary.transactionsByDay[tx.date] = [];
+    if (!summary.transactionsByDay[effectiveDate]) {
+      summary.transactionsByDay[effectiveDate] = [];
     }
 
     const filterObj = filterObjectsByTransactionId?.get(tx.id);
@@ -206,7 +209,7 @@ function summarizePostedTransactions(
       ? (scheduleNamesById?.get(tx.schedule) ?? 'Scheduled')
       : 'Transaction';
 
-    summary.transactionsByDay[tx.date].push({
+    summary.transactionsByDay[effectiveDate].push({
       amount: tx.amount,
       payee: payeeName,
       category: tx.category ?? null,
