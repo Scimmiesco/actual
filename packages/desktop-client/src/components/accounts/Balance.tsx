@@ -10,7 +10,10 @@ import { q } from '@actual-app/core/shared/query';
 import type { Query } from '@actual-app/core/shared/query';
 import { getScheduledAmount } from '@actual-app/core/shared/schedules';
 import { isPreviewId } from '@actual-app/core/shared/transactions';
-import type { AccountEntity, TransactionEntity } from '@actual-app/core/types/models';
+import type {
+  AccountEntity,
+  TransactionEntity,
+} from '@actual-app/core/types/models';
 
 import { FinancialText } from '#components/FinancialText';
 import { PrivacyFilter } from '#components/PrivacyFilter';
@@ -93,41 +96,67 @@ export function SelectedBalance({
   account,
 }: SelectedBalanceProps) {
   const { t } = useTranslation();
-  const { schedules } = useCachedSchedules();
+
+  const name = `selected-balance-${[...selectedItems].join('-')}`;
+
+  const rows = useSheetValue<'balance', `selected-transactions-${string}`>({
+    name: name as `selected-transactions-${string}`,
+    query: q('transactions')
+      .filter({
+        id: { $oneof: [...selectedItems] },
+        parent_id: { $oneof: [...selectedItems] },
+      })
+      .select('id'),
+  });
+  const ids = new Set((rows || []).map((r: { id: string }) => r.id));
+
+  const finalIds = [...selectedItems].filter(id => !ids.has(id));
+  let balance = useSheetValue<'balance', `selected-balance-${string}`>({
+    name: (name + '-sum') as `selected-balance-${string}`,
+    query: q('transactions')
+      .filter({ id: { $oneof: finalIds } })
+      .options({ splits: 'all' })
+      .calculate({ $sum: '$amount' }),
+  });
+
+  let scheduleBalance = 0;
+
+  const { isLoading, schedules = [] } = useCachedSchedules();
+
+  if (isLoading) {
+    return null;
+  }
 
   let isExactBalance = true;
-  let balance = null;
-  let scheduleBalance = 0;
-  let hasSchedule = false;
 
-  for (const id of selectedItems) {
-    if (isPreviewId(id)) {
-      hasSchedule = true;
-      const parts = id.split('/');
-      const schedule = schedules?.find(s => s.id === parts[1]);
-      if (schedule && schedule._amount != null) {
-        const amount = getScheduledAmount(schedule._amount);
-        if (amount == null) {
-          isExactBalance = false;
-        } else if (typeof amount === 'number') {
-          scheduleBalance += amount;
-        }
+  for (const id of [...selectedItems].filter(isPreviewId)) {
+    // Preview IDs are in the format `preview/<schedule_id>/<date>`
+    const scheduleId = id.slice(8).split('/')[0];
+    const schedule = schedules.find(s => s.id === scheduleId);
+    if (schedule) {
+      // If a schedule is `between X and Y` then we calculate the average
+      if (schedule._amountOp === 'isbetween') {
+        isExactBalance = false;
+      }
+
+      if (!account || account.id === schedule._account) {
+        scheduleBalance += getScheduledAmount(schedule._amount);
+      } else {
+        scheduleBalance -= getScheduledAmount(schedule._amount);
       }
     }
   }
 
-  if (account) {
-    balance = balance ?? 0;
-  }
-
-  if (hasSchedule) {
+  if (typeof balance !== 'number' && !scheduleBalance) {
+    return null;
+  } else {
     balance = (balance ?? 0) + scheduleBalance;
   }
 
   return (
     <DetailedBalance
       name={t('Selected balance:')}
-      balance={balance ?? 0}
+      balance={balance}
       isExactBalance={isExactBalance}
     />
   );

@@ -8,7 +8,10 @@ import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
 import * as monthUtils from '@actual-app/core/shared/months';
 import type { Query } from '@actual-app/core/shared/query';
-import type { AccountEntity, TransactionEntity } from '@actual-app/core/types/models';
+import type {
+  AccountEntity,
+  TransactionEntity,
+} from '@actual-app/core/types/models';
 
 import { FinancialText } from '#components/FinancialText';
 import { PrivacyFilter } from '#components/PrivacyFilter';
@@ -187,10 +190,7 @@ export function CreditCardBalances({
       $or: [
         { charge_date: { $gt: endOfNextMonth } },
         {
-          $and: [
-            { charge_date: null },
-            { date: { $gt: endOfNextMonth } },
-          ],
+          $and: [{ charge_date: null }, { date: { $gt: endOfNextMonth } }],
         },
       ],
     }),
@@ -264,7 +264,7 @@ export function CreditCardBalances({
     let next = 'total';
     if (primaryView === 'next-month') {
       next = 'total';
-      } else if (primaryView === 'total') {
+    } else if (primaryView === 'total') {
       next =
         effectiveCurrentMonthBill && effectiveCurrentMonthBill !== 0
           ? 'current-month'

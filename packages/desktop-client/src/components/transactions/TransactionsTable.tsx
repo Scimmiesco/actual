@@ -88,6 +88,8 @@ import { CategoryAutocomplete } from '#components/autocomplete/CategoryAutocompl
 import { PayeeAutocomplete } from '#components/autocomplete/PayeeAutocomplete';
 import { TagAutocomplete } from '#components/autocomplete/TagAutocomplete';
 import { TransferDirectionIcon } from '#components/common/TransferDirectionIcon';
+import { FinancialText } from '#components/FinancialText';
+import { PrivacyFilter } from '#components/PrivacyFilter';
 import { getStatusProps } from '#components/schedules/StatusBadge';
 import type { StatusTypes } from '#components/schedules/StatusBadge';
 import { DateSelect } from '#components/select/DateSelect';
@@ -126,6 +128,7 @@ import type {
   OnDragChangeCallback,
   OnDropCallback,
 } from '#hooks/useDragDrop';
+import { useFormat } from '#hooks/useFormat';
 import { useLocale } from '#hooks/useLocale';
 import { useLocalPref } from '#hooks/useLocalPref';
 import { useMergedRefs } from '#hooks/useMergedRefs';
@@ -139,9 +142,6 @@ import type { SplitsExpandedContextValue } from '#hooks/useSplitsExpanded';
 import { useSyncedPref } from '#hooks/useSyncedPref';
 import { pushModal } from '#modals/modalsSlice';
 import { NotesTagFormatter } from '#notes/NotesTagFormatter';
-import { FinancialText } from '#components/FinancialText';
-import { PrivacyFilter } from '#components/PrivacyFilter';
-import { useFormat } from '#hooks/useFormat';
 import { addNotification } from '#notifications/notificationsSlice';
 import { getPayeesById } from '#payees';
 import { aqlQuery } from '#queries/aqlQuery';
