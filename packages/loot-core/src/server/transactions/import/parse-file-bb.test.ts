@@ -168,6 +168,7 @@ describe('BB Credit Card OFX Import and Installment Detection', () => {
       amount: number;
       notes: string | null;
       imported_id: string | null;
+      category?: string | null;
     };
 
     const dbTransAfter1 = await db.all<DbRow>(
@@ -258,5 +259,97 @@ describe('BB Credit Card OFX Import and Installment Detection', () => {
       ([_, count]) => count > 1,
     );
     expect(duplicateInstallments).toEqual([]);
+
+    // Step 3: Test Category Synchronization Across Installments
+    const { batchUpdateTransactions } = await import('#server/transactions');
+    await db.insertCategory({
+      id: 'cat-clothing',
+      name: 'Clothing',
+      cat_group: 'group-1',
+    });
+    await db.insertCategory({
+      id: 'cat-fashion',
+      name: 'Fashion',
+      cat_group: 'group-1',
+    });
+
+    // Find SHEIN installment 2
+    const shein2 = dbTransAfter2.find(
+      t => t.notes && t.notes.includes('[2/3] SHEIN'),
+    );
+    expect(shein2).toBeDefined();
+
+    // Update category on installment 2
+    await batchUpdateTransactions({
+      updated: [{ id: shein2!.id, category: 'cat-clothing' }],
+    });
+
+    // Verify that ALL installments of this SHEIN purchase now have category 'cat-clothing'
+    const sheinTxs = await db.all<DbRow>(
+      `SELECT id, date, charge_date, amount, notes, category, imported_id
+       FROM v_transactions
+       WHERE notes LIKE '%SHEIN *SHEIN Vila OlimpiaBR%' AND amount = ?`,
+      [shein2!.amount],
+    );
+    expect(sheinTxs.length).toBe(2);
+    for (const tx of sheinTxs) {
+      expect(tx.category).toBe('cat-clothing');
+    }
+
+    // Now update category from installment 3 to 'cat-fashion'
+    const shein3 = sheinTxs.find(
+      t => t.notes && t.notes.includes('[3/3] SHEIN'),
+    );
+    expect(shein3).toBeDefined();
+    await batchUpdateTransactions({
+      updated: [{ id: shein3!.id, category: 'cat-fashion' }],
+    });
+
+    const sheinTxsAfter = await db.all<DbRow>(
+      `SELECT id, category FROM v_transactions
+       WHERE notes LIKE '%SHEIN *SHEIN Vila OlimpiaBR%' AND amount = ?`,
+      [shein2!.amount],
+    );
+    for (const tx of sheinTxsAfter) {
+      expect(tx.category).toBe('cat-fashion');
+    }
+
+    // Test manual note-tagged installments (without imported_id)
+    await db.insertTransaction({
+      id: 'manual-inst-1',
+      account: 'cc-acct',
+      date: '2026-08-01',
+      charge_date: '2026-08-11',
+      amount: -10000,
+      notes: '[1/3] Curso Online',
+    });
+    await db.insertTransaction({
+      id: 'manual-inst-2',
+      account: 'cc-acct',
+      date: '2026-08-01',
+      charge_date: '2026-09-11',
+      amount: -10000,
+      notes: '[2/3] Curso Online',
+    });
+    await db.insertTransaction({
+      id: 'manual-inst-3',
+      account: 'cc-acct',
+      date: '2026-08-01',
+      charge_date: '2026-10-11',
+      amount: -10000,
+      notes: '[3/3] Curso Online',
+    });
+
+    await batchUpdateTransactions({
+      updated: [{ id: 'manual-inst-1', category: 'cat-fashion' }],
+    });
+
+    const manualTxs = await db.all<DbRow>(
+      `SELECT id, category FROM v_transactions WHERE notes LIKE '%Curso Online%'`,
+    );
+    expect(manualTxs.length).toBe(3);
+    for (const tx of manualTxs) {
+      expect(tx.category).toBe('cat-fashion');
+    }
   });
 });

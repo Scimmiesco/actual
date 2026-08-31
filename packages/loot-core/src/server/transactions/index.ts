@@ -7,6 +7,7 @@ import { batchMessages } from '#server/sync';
 import type { Diff } from '#shared/util';
 import type { PayeeEntity, TransactionEntity } from '#types/models';
 
+import { findSiblingInstallments } from './import/installments';
 import * as rules from './transaction-rules';
 import * as transfer from './transfer';
 
@@ -49,9 +50,44 @@ export async function batchUpdateTransactions({
   detectOrphanPayees?: boolean;
   runTransfers?: boolean;
 }) {
+  const effectiveUpdated = updated ? [...updated] : [];
+
+  // When updating a transaction category on an installment, synchronize
+  // the new category across all sibling installments in the same purchase series.
+  if (effectiveUpdated.length > 0) {
+    const categoryUpdates = effectiveUpdated.filter(
+      (u): u is Partial<TransactionEntity> & { id: string } =>
+        Boolean(u.id) && u.category !== undefined,
+    );
+    if (categoryUpdates.length > 0) {
+      const knownIds = new Set(effectiveUpdated.map(u => u.id));
+      for (const update of categoryUpdates) {
+        const siblings = await findSiblingInstallments(db, update);
+        for (const sibling of siblings) {
+          if (sibling.category !== update.category) {
+            if (!knownIds.has(sibling.id)) {
+              knownIds.add(sibling.id);
+              effectiveUpdated.push({
+                id: sibling.id,
+                category: update.category,
+              });
+            } else {
+              const existingInList = effectiveUpdated.find(
+                u => u.id === sibling.id,
+              );
+              if (existingInList) {
+                existingInList.category = update.category;
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
   // Track the ids of each type of transaction change (see below for why)
   let addedIds = [];
-  const updatedIds = updated ? updated.map(u => u.id) : [];
+  const updatedIds = effectiveUpdated.map(u => u.id);
   const deletedIds = deleted
     ? await idsWithChildren(deleted.map(d => d.id))
     : [];
@@ -63,8 +99,8 @@ export async function batchUpdateTransactions({
 
   // We need to get all the payees of updated transactions _before_
   // making changes
-  if (updated) {
-    const descUpdatedIds = updated
+  if (effectiveUpdated.length > 0) {
+    const descUpdatedIds = effectiveUpdated
       .filter(update => update.payee)
       .map(update => update.id);
 
@@ -103,9 +139,9 @@ export async function batchUpdateTransactions({
       );
     }
 
-    if (updated) {
+    if (effectiveUpdated.length > 0) {
       await Promise.all(
-        updated.map(async t => {
+        effectiveUpdated.map(async t => {
           if (t.account) {
             // Moving transactions off budget should always clear the
             // category. Parent transactions should not have categories.
