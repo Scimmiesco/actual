@@ -147,6 +147,7 @@ export function Accounts() {
               marginBottom: 5,
             }}
             titleAccount
+            isExactPathMatch
             balanceTestId="sidebar-on-budget-balance"
           />
         )}
@@ -167,6 +168,7 @@ export function Accounts() {
                 marginBottom: 5,
               }}
               titleAccount
+              isExactPathMatch
               balanceTestId="sidebar-checking-accounts-balance"
               action={
                 <Button
@@ -230,6 +232,7 @@ export function Accounts() {
                 marginBottom: 5,
               }}
               titleAccount
+              isExactPathMatch
               balanceTestId="sidebar-credit-cards-balance"
               action={
                 <Button

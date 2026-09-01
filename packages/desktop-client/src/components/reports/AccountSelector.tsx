@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useId, useMemo, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 
 import { Button } from '@actual-app/components/button';
@@ -28,18 +28,24 @@ export function AccountSelector({
   setSelectedAccountIds,
 }: AccountSelectorProps) {
   const { t } = useTranslation();
+  const idPrefix = useId();
   const [uncheckedHidden, setUncheckedHidden] = useState(false);
 
-  // Group accounts by on-budget, off-budget, and closed
+  // Group accounts by checking, credit cards, off-budget, and closed
   const groupedAccounts = useMemo(() => {
-    const onBudget = accounts.filter(
-      account => !account.offbudget && !account.closed,
+    const checking = accounts.filter(
+      account =>
+        !account.offbudget && !account.closed && account.type !== 'credit',
+    );
+    const credit = accounts.filter(
+      account =>
+        !account.offbudget && !account.closed && account.type === 'credit',
     );
     const offBudget = accounts.filter(
       account => account.offbudget && !account.closed,
     );
     const closed = accounts.filter(account => account.closed);
-    return { onBudget, offBudget, closed };
+    return { checking, credit, offBudget, closed };
   }, [accounts]);
 
   const selectedAccountMap = useMemo(
@@ -48,19 +54,48 @@ export function AccountSelector({
   );
 
   // Calculate selection states for each group
-  const onBudgetSelected = groupedAccounts.onBudget.every(account =>
-    selectedAccountMap.has(account.id),
-  );
-  const offBudgetSelected = groupedAccounts.offBudget.every(account =>
-    selectedAccountMap.has(account.id),
-  );
-  const closedSelected = groupedAccounts.closed.every(account =>
-    selectedAccountMap.has(account.id),
-  );
+  const checkingSelected =
+    groupedAccounts.checking.length > 0 &&
+    groupedAccounts.checking.every(account =>
+      selectedAccountMap.has(account.id),
+    );
+  const creditSelected =
+    groupedAccounts.credit.length > 0 &&
+    groupedAccounts.credit.every(account => selectedAccountMap.has(account.id));
+  const offBudgetSelected =
+    groupedAccounts.offBudget.length > 0 &&
+    groupedAccounts.offBudget.every(account =>
+      selectedAccountMap.has(account.id),
+    );
+  const closedSelected =
+    groupedAccounts.closed.length > 0 &&
+    groupedAccounts.closed.every(account => selectedAccountMap.has(account.id));
 
   const allAccountsSelected =
-    onBudgetSelected && offBudgetSelected && closedSelected;
+    (groupedAccounts.checking.length === 0 || checkingSelected) &&
+    (groupedAccounts.credit.length === 0 || creditSelected) &&
+    (groupedAccounts.offBudget.length === 0 || offBudgetSelected) &&
+    (groupedAccounts.closed.length === 0 || closedSelected);
   const allAccountsUnselected = !selectedAccountIds.length;
+
+  function toggleAccountGroup(
+    groupAccountIds: string[],
+    isAllSelected: boolean,
+  ) {
+    if (isAllSelected) {
+      setSelectedAccountIds(
+        selectedAccountIds.filter(id => !groupAccountIds.includes(id)),
+      );
+    } else {
+      const newSelection = [...selectedAccountIds];
+      groupAccountIds.forEach(id => {
+        if (!newSelection.includes(id)) {
+          newSelection.push(id);
+        }
+      });
+      setSelectedAccountIds(newSelection);
+    }
+  }
 
   return (
     <View>
@@ -143,68 +178,51 @@ export function AccountSelector({
           overflowY: 'auto',
         }}
       >
-        {/* On Budget Accounts */}
-        {groupedAccounts.onBudget.length > 0 && (
+        {/* Checking Accounts */}
+        {groupedAccounts.checking.length > 0 && (
           <>
             <li
               style={{
-                display: !onBudgetSelected && uncheckedHidden ? 'none' : 'flex',
+                display: !checkingSelected && uncheckedHidden ? 'none' : 'flex',
                 flexDirection: 'row',
+                alignItems: 'center',
                 marginBottom: 8,
                 marginTop: 8,
               }}
             >
               <Checkbox
-                id="onbudget_group"
-                checked={onBudgetSelected}
-                onChange={() => {
-                  const onBudgetAccountIds = groupedAccounts.onBudget.map(
-                    account => account.id,
-                  );
-                  const allOnBudgetSelected = onBudgetAccountIds.every(id =>
-                    selectedAccountIds.includes(id),
-                  );
-
-                  if (allOnBudgetSelected) {
-                    // Deselect all on-budget accounts
-                    setSelectedAccountIds(
-                      selectedAccountIds.filter(
-                        id => !onBudgetAccountIds.includes(id),
-                      ),
-                    );
-                  } else {
-                    // Select all on-budget accounts
-                    const newSelection = [...selectedAccountIds];
-                    onBudgetAccountIds.forEach(id => {
-                      if (!newSelection.includes(id)) {
-                        newSelection.push(id);
-                      }
-                    });
-                    setSelectedAccountIds(newSelection);
-                  }
-                }}
+                id={`${idPrefix}-group-checking`}
+                checked={checkingSelected}
+                onChange={() =>
+                  toggleAccountGroup(
+                    groupedAccounts.checking.map(a => a.id),
+                    checkingSelected,
+                  )
+                }
               />
               <label
-                htmlFor="onbudget_group"
+                htmlFor={`${idPrefix}-group-checking`}
                 style={{ userSelect: 'none', fontWeight: 'bold' }}
               >
-                <Trans>On Budget</Trans>
+                <Trans>Checking accounts</Trans>
               </label>
             </li>
-            {groupedAccounts.onBudget.map(account => {
+            {groupedAccounts.checking.map(account => {
               const isChecked = selectedAccountMap.has(account.id);
+              const inputId = `${idPrefix}-account-${account.id}`;
               return (
                 <li
                   key={account.id}
                   style={{
                     display: !isChecked && uncheckedHidden ? 'none' : 'flex',
                     flexDirection: 'row',
+                    alignItems: 'center',
                     marginBottom: 4,
                     marginLeft: 16,
                   }}
                 >
                   <Checkbox
-                    id={`account_${account.id}`}
+                    id={inputId}
                     checked={isChecked}
                     onChange={() => {
                       if (isChecked) {
@@ -219,10 +237,75 @@ export function AccountSelector({
                       }
                     }}
                   />
-                  <label
-                    htmlFor={`account_${account.id}`}
-                    style={{ userSelect: 'none' }}
-                  >
+                  <label htmlFor={inputId} style={{ userSelect: 'none' }}>
+                    {account.name}
+                  </label>
+                </li>
+              );
+            })}
+          </>
+        )}
+
+        {/* Credit Card Accounts */}
+        {groupedAccounts.credit.length > 0 && (
+          <>
+            <li
+              style={{
+                display: !creditSelected && uncheckedHidden ? 'none' : 'flex',
+                flexDirection: 'row',
+                alignItems: 'center',
+                marginBottom: 8,
+                marginTop: 16,
+              }}
+            >
+              <Checkbox
+                id={`${idPrefix}-group-credit`}
+                checked={creditSelected}
+                onChange={() =>
+                  toggleAccountGroup(
+                    groupedAccounts.credit.map(a => a.id),
+                    creditSelected,
+                  )
+                }
+              />
+              <label
+                htmlFor={`${idPrefix}-group-credit`}
+                style={{ userSelect: 'none', fontWeight: 'bold' }}
+              >
+                <Trans>Credit cards</Trans>
+              </label>
+            </li>
+            {groupedAccounts.credit.map(account => {
+              const isChecked = selectedAccountMap.has(account.id);
+              const inputId = `${idPrefix}-account-${account.id}`;
+              return (
+                <li
+                  key={account.id}
+                  style={{
+                    display: !isChecked && uncheckedHidden ? 'none' : 'flex',
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    marginBottom: 4,
+                    marginLeft: 16,
+                  }}
+                >
+                  <Checkbox
+                    id={inputId}
+                    checked={isChecked}
+                    onChange={() => {
+                      if (isChecked) {
+                        setSelectedAccountIds(
+                          selectedAccountIds.filter(id => id !== account.id),
+                        );
+                      } else {
+                        setSelectedAccountIds([
+                          ...selectedAccountIds,
+                          account.id,
+                        ]);
+                      }
+                    }}
+                  />
+                  <label htmlFor={inputId} style={{ userSelect: 'none' }}>
                     {account.name}
                   </label>
                 </li>
@@ -239,42 +322,23 @@ export function AccountSelector({
                 display:
                   !offBudgetSelected && uncheckedHidden ? 'none' : 'flex',
                 flexDirection: 'row',
+                alignItems: 'center',
                 marginBottom: 8,
                 marginTop: 16,
               }}
             >
               <Checkbox
-                id="offbudget_group"
+                id={`${idPrefix}-group-offbudget`}
                 checked={offBudgetSelected}
-                onChange={() => {
-                  const offBudgetAccountIds = groupedAccounts.offBudget.map(
-                    account => account.id,
-                  );
-                  const allOffBudgetSelected = offBudgetAccountIds.every(id =>
-                    selectedAccountIds.includes(id),
-                  );
-
-                  if (allOffBudgetSelected) {
-                    // Deselect all off-budget accounts
-                    setSelectedAccountIds(
-                      selectedAccountIds.filter(
-                        id => !offBudgetAccountIds.includes(id),
-                      ),
-                    );
-                  } else {
-                    // Select all off-budget accounts
-                    const newSelection = [...selectedAccountIds];
-                    offBudgetAccountIds.forEach(id => {
-                      if (!newSelection.includes(id)) {
-                        newSelection.push(id);
-                      }
-                    });
-                    setSelectedAccountIds(newSelection);
-                  }
-                }}
+                onChange={() =>
+                  toggleAccountGroup(
+                    groupedAccounts.offBudget.map(a => a.id),
+                    offBudgetSelected,
+                  )
+                }
               />
               <label
-                htmlFor="offbudget_group"
+                htmlFor={`${idPrefix}-group-offbudget`}
                 style={{ userSelect: 'none', fontWeight: 'bold' }}
               >
                 <Trans>Off Budget</Trans>
@@ -282,18 +346,20 @@ export function AccountSelector({
             </li>
             {groupedAccounts.offBudget.map(account => {
               const isChecked = selectedAccountMap.has(account.id);
+              const inputId = `${idPrefix}-account-${account.id}`;
               return (
                 <li
                   key={account.id}
                   style={{
                     display: !isChecked && uncheckedHidden ? 'none' : 'flex',
                     flexDirection: 'row',
+                    alignItems: 'center',
                     marginBottom: 4,
                     marginLeft: 16,
                   }}
                 >
                   <Checkbox
-                    id={`account_${account.id}`}
+                    id={inputId}
                     checked={isChecked}
                     onChange={() => {
                       if (isChecked) {
@@ -308,10 +374,7 @@ export function AccountSelector({
                       }
                     }}
                   />
-                  <label
-                    htmlFor={`account_${account.id}`}
-                    style={{ userSelect: 'none' }}
-                  >
+                  <label htmlFor={inputId} style={{ userSelect: 'none' }}>
                     {account.name}
                   </label>
                 </li>
@@ -327,42 +390,23 @@ export function AccountSelector({
               style={{
                 display: !closedSelected && uncheckedHidden ? 'none' : 'flex',
                 flexDirection: 'row',
+                alignItems: 'center',
                 marginBottom: 8,
                 marginTop: 16,
               }}
             >
               <Checkbox
-                id="closed_group"
+                id={`${idPrefix}-group-closed`}
                 checked={closedSelected}
-                onChange={() => {
-                  const closedAccountIds = groupedAccounts.closed.map(
-                    account => account.id,
-                  );
-                  const allClosedSelected = closedAccountIds.every(id =>
-                    selectedAccountIds.includes(id),
-                  );
-
-                  if (allClosedSelected) {
-                    // Deselect all closed accounts
-                    setSelectedAccountIds(
-                      selectedAccountIds.filter(
-                        id => !closedAccountIds.includes(id),
-                      ),
-                    );
-                  } else {
-                    // Select all closed accounts
-                    const newSelection = [...selectedAccountIds];
-                    closedAccountIds.forEach(id => {
-                      if (!newSelection.includes(id)) {
-                        newSelection.push(id);
-                      }
-                    });
-                    setSelectedAccountIds(newSelection);
-                  }
-                }}
+                onChange={() =>
+                  toggleAccountGroup(
+                    groupedAccounts.closed.map(a => a.id),
+                    closedSelected,
+                  )
+                }
               />
               <label
-                htmlFor="closed_group"
+                htmlFor={`${idPrefix}-group-closed`}
                 style={{ userSelect: 'none', fontWeight: 'bold' }}
               >
                 <Trans>Closed</Trans>
@@ -370,18 +414,20 @@ export function AccountSelector({
             </li>
             {groupedAccounts.closed.map(account => {
               const isChecked = selectedAccountMap.has(account.id);
+              const inputId = `${idPrefix}-account-${account.id}`;
               return (
                 <li
                   key={account.id}
                   style={{
                     display: !isChecked && uncheckedHidden ? 'none' : 'flex',
                     flexDirection: 'row',
+                    alignItems: 'center',
                     marginBottom: 4,
                     marginLeft: 16,
                   }}
                 >
                   <Checkbox
-                    id={`account_${account.id}`}
+                    id={inputId}
                     checked={isChecked}
                     onChange={() => {
                       if (isChecked) {
@@ -396,10 +442,7 @@ export function AccountSelector({
                       }
                     }}
                   />
-                  <label
-                    htmlFor={`account_${account.id}`}
-                    style={{ userSelect: 'none' }}
-                  >
+                  <label htmlFor={inputId} style={{ userSelect: 'none' }}>
                     {account.name}
                   </label>
                 </li>
