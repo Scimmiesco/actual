@@ -172,7 +172,7 @@ describe('sidebar Account context menu', () => {
       creditCardCleared: true,
       cutoffDate: '2026-09-30',
     });
-    expect(allAccountsBinding.name).toBe('accounts-balance');
+    expect(allAccountsBinding.name).toBe('accounts-balance-onbudget-cleared');
     expect(allAccountsBinding.query).toBeDefined();
   });
 });

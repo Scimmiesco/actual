@@ -62,20 +62,11 @@ export function creditCardAccountBalance(
     query: q('transactions')
       .filter({
         account: accountId,
+        cleared: false,
         $or: [
-          { cleared: true },
+          { charge_date: { $lte: cutoff } },
           {
-            $and: [
-              { cleared: false },
-              {
-                $or: [
-                  { charge_date: { $lte: cutoff } },
-                  {
-                    $and: [{ charge_date: null }, { date: { $lte: cutoff } }],
-                  },
-                ],
-              },
-            ],
+            $and: [{ charge_date: null }, { date: { $lte: cutoff } }],
           },
         ],
       })
@@ -119,24 +110,12 @@ export function allAccountBalanceWithCreditCards(cutoffDate?: string) {
             $and: [
               { 'account.offbudget': false },
               { 'account.type': 'credit' },
+              { cleared: false },
               {
                 $or: [
-                  { cleared: true },
+                  { charge_date: { $lte: cutoff } },
                   {
-                    $and: [
-                      { cleared: false },
-                      {
-                        $or: [
-                          { charge_date: { $lte: cutoff } },
-                          {
-                            $and: [
-                              { charge_date: null },
-                              { date: { $lte: cutoff } },
-                            ],
-                          },
-                        ],
-                      },
-                    ],
+                    $and: [{ charge_date: null }, { date: { $lte: cutoff } }],
                   },
                 ],
               },
@@ -189,24 +168,12 @@ export function onBudgetAccountBalanceWithCreditCards(cutoffDate?: string) {
           {
             $and: [
               { 'account.type': 'credit' },
+              { cleared: false },
               {
                 $or: [
-                  { cleared: true },
+                  { charge_date: { $lte: cutoff } },
                   {
-                    $and: [
-                      { cleared: false },
-                      {
-                        $or: [
-                          { charge_date: { $lte: cutoff } },
-                          {
-                            $and: [
-                              { charge_date: null },
-                              { date: { $lte: cutoff } },
-                            ],
-                          },
-                        ],
-                      },
-                    ],
+                    $and: [{ charge_date: null }, { date: { $lte: cutoff } }],
                   },
                 ],
               },
@@ -229,20 +196,11 @@ export function creditCardsTotalBalance(cutoffDate?: string) {
         'account.offbudget': false,
         'account.closed': false,
         'account.type': 'credit',
+        cleared: false,
         $or: [
-          { cleared: true },
+          { charge_date: { $lte: cutoff } },
           {
-            $and: [
-              { cleared: false },
-              {
-                $or: [
-                  { charge_date: { $lte: cutoff } },
-                  {
-                    $and: [{ charge_date: null }, { date: { $lte: cutoff } }],
-                  },
-                ],
-              },
-            ],
+            $and: [{ charge_date: null }, { date: { $lte: cutoff } }],
           },
         ],
       })
@@ -299,24 +257,12 @@ export function onBudgetAccountBalanceWithViews({
     : {
         $and: [
           { 'account.type': 'credit' },
+          { cleared: false },
           {
             $or: [
-              { cleared: true },
+              { charge_date: { $lte: cutoff } },
               {
-                $and: [
-                  { cleared: false },
-                  {
-                    $or: [
-                      { charge_date: { $lte: cutoff } },
-                      {
-                        $and: [
-                          { charge_date: null },
-                          { date: { $lte: cutoff } },
-                        ],
-                      },
-                    ],
-                  },
-                ],
+                $and: [{ charge_date: null }, { date: { $lte: cutoff } }],
               },
             ],
           },
@@ -324,7 +270,9 @@ export function onBudgetAccountBalanceWithViews({
       };
 
   return {
-    name: 'onbudget-accounts-balance',
+    name: (onBudgetCleared && creditCardCleared
+      ? 'onbudget-accounts-balance-cleared'
+      : 'onbudget-accounts-balance') as `onbudget-accounts-balance`,
     query: q('transactions')
       .filter({
         'account.offbudget': false,
@@ -384,24 +332,12 @@ export function allAccountBalanceWithViews({
         $and: [
           { 'account.offbudget': false },
           { 'account.type': 'credit' },
+          { cleared: false },
           {
             $or: [
-              { cleared: true },
+              { charge_date: { $lte: cutoff } },
               {
-                $and: [
-                  { cleared: false },
-                  {
-                    $or: [
-                      { charge_date: { $lte: cutoff } },
-                      {
-                        $and: [
-                          { charge_date: null },
-                          { date: { $lte: cutoff } },
-                        ],
-                      },
-                    ],
-                  },
-                ],
+                $and: [{ charge_date: null }, { date: { $lte: cutoff } }],
               },
             ],
           },
@@ -409,7 +345,9 @@ export function allAccountBalanceWithViews({
       };
 
   return {
-    name: 'accounts-balance',
+    name: (onBudgetCleared && creditCardCleared
+      ? 'accounts-balance-onbudget-cleared'
+      : 'accounts-balance') as `accounts-balance`,
     query: q('transactions')
       .filter({
         'account.closed': false,
