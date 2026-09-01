@@ -37,6 +37,13 @@ export function Accounts() {
 
   const getAccountPath = (account: AccountEntity) => `/accounts/${account.id}`;
 
+  const onBudgetNonCreditAccounts = onBudgetAccounts.filter(
+    a => a.type !== 'credit',
+  );
+  const onBudgetCreditAccounts = onBudgetAccounts.filter(
+    a => a.type === 'credit',
+  );
+
   const [showClosedAccounts, setShowClosedAccountsPref] = useLocalPref(
     'ui.showClosedAccounts',
   );
@@ -45,10 +52,20 @@ export function Accounts() {
   );
   const isOnBudgetCleared = onBudgetBalanceViewPref === 'cleared';
 
+  const [creditCardBalanceViewPref, setCreditCardBalanceViewPref] =
+    useSyncedPref('sidebar.creditcard-balance-view');
+  const isCreditCardCleared = creditCardBalanceViewPref === 'cleared';
+
   const onToggleOnBudgetBalanceView = (e: MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setOnBudgetBalanceViewPref(isOnBudgetCleared ? 'all' : 'cleared');
+  };
+
+  const onToggleCreditCardBalanceView = (e: MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setCreditCardBalanceViewPref(isCreditCardCleared ? 'due' : 'cleared');
   };
 
   function onDragChange(drag: { state: string }) {
@@ -107,11 +124,10 @@ export function Accounts() {
         <Account
           name={t('All accounts')}
           to="/accounts"
-          query={
-            isOnBudgetCleared
-              ? bindings.allAccountBalanceWithOnBudgetCleared()
-              : bindings.allAccountBalanceWithCreditCards()
-          }
+          query={bindings.allAccountBalanceWithViews({
+            onBudgetCleared: isOnBudgetCleared,
+            creditCardCleared: isCreditCardCleared,
+          })}
           style={{ fontWeight, marginTop: 15 }}
           isExactPathMatch
           balanceTestId="sidebar-all-accounts-balance"
@@ -121,11 +137,10 @@ export function Accounts() {
           <Account
             name={t('On budget')}
             to="/accounts/onbudget"
-            query={
-              isOnBudgetCleared
-                ? bindings.onBudgetAccountBalanceCleared()
-                : bindings.onBudgetAccountBalanceWithCreditCards()
-            }
+            query={bindings.onBudgetAccountBalanceWithViews({
+              onBudgetCleared: isOnBudgetCleared,
+              creditCardCleared: isCreditCardCleared,
+            })}
             style={{
               fontWeight,
               marginTop: 13,
@@ -158,7 +173,7 @@ export function Accounts() {
           />
         )}
 
-        {onBudgetAccounts.map((account, i) => (
+        {onBudgetNonCreditAccounts.map((account, i) => (
           <Account
             key={account.id}
             name={account.name}
@@ -171,15 +186,78 @@ export function Accounts() {
             query={
               isOnBudgetCleared
                 ? bindings.accountBalanceCleared(account.id)
-                : account.type === 'credit'
-                  ? bindings.creditCardAccountBalance(account.id)
-                  : bindings.accountBalance(account.id)
+                : bindings.accountBalance(account.id)
             }
             onDragChange={onDragChange}
             onDrop={onReorder}
             outerStyle={makeDropPadding(i)}
           />
         ))}
+
+        {onBudgetCreditAccounts.length > 0 && (
+          <>
+            <Account
+              name={t('Credit cards')}
+              to="/accounts"
+              query={
+                isCreditCardCleared
+                  ? bindings.creditCardsTotalBalanceCleared()
+                  : bindings.creditCardsTotalBalance()
+              }
+              style={{
+                fontWeight,
+                marginTop: 10,
+                marginBottom: 5,
+              }}
+              titleAccount
+              balanceTestId="sidebar-credit-cards-balance"
+              action={
+                <Button
+                  variant="bare"
+                  aria-label={
+                    isCreditCardCleared
+                      ? t('Switch to bill due balance')
+                      : t('Switch to cleared balance only')
+                  }
+                  onClick={onToggleCreditCardBalanceView}
+                  style={({ isHovered }) => ({
+                    padding: 2,
+                    borderRadius: 3,
+                    color: isCreditCardCleared
+                      ? theme.sidebarItemTextSelected
+                      : theme.sidebarItemText,
+                    opacity: isHovered ? 1 : 0.8,
+                  })}
+                  data-testid="toggle-sidebar-creditcard-balance-view"
+                >
+                  <SvgSwap width={11} height={11} />
+                </Button>
+              }
+            />
+            {onBudgetCreditAccounts.map((account, i) => (
+              <Account
+                key={account.id}
+                name={account.name}
+                account={account}
+                connected={!!account.bank}
+                pending={syncingAccountIds.includes(account.id)}
+                failed={isAccountFailedSync(account)}
+                updated={updatedAccounts.includes(account.id)}
+                to={getAccountPath(account)}
+                query={
+                  isCreditCardCleared
+                    ? bindings.accountBalanceCleared(account.id)
+                    : bindings.creditCardAccountBalance(account.id)
+                }
+                onDragChange={onDragChange}
+                onDrop={onReorder}
+                outerStyle={makeDropPadding(
+                  onBudgetNonCreditAccounts.length + i,
+                )}
+              />
+            ))}
+          </>
+        )}
 
         {offbudgetAccounts.length > 0 && (
           <Account

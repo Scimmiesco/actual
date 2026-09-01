@@ -144,20 +144,34 @@ describe('sidebar Account context menu', () => {
     expect(onActionClick).toHaveBeenCalledTimes(1);
   });
 
-  it('provides creditCardAccountBalance binding filtering for closest invoice and cleared', () => {
+  it('provides creditCardAccountBalance and creditCardsTotalBalance bindings', () => {
     const binding = bindings.creditCardAccountBalance('acct-1', '2026-09-30');
     expect(binding.name).toBe('balanceCreditCard-acct-1');
     expect(binding.query).toBeDefined();
+
+    const totalDue = bindings.creditCardsTotalBalance('2026-09-30');
+    expect(totalDue.name).toBe('onbudget-credit-cards-balance');
+    expect(totalDue.query).toBeDefined();
+
+    const totalCleared = bindings.creditCardsTotalBalanceCleared();
+    expect(totalCleared.name).toBe('onbudget-credit-cards-balance-cleared');
+    expect(totalCleared.query).toBeDefined();
   });
 
-  it('provides onBudgetAccountBalanceWithCreditCards and allAccountBalanceWithCreditCards bindings', () => {
-    const onBudgetBinding =
-      bindings.onBudgetAccountBalanceWithCreditCards('2026-09-30');
+  it('provides onBudgetAccountBalanceWithViews and allAccountBalanceWithViews bindings', () => {
+    const onBudgetBinding = bindings.onBudgetAccountBalanceWithViews({
+      onBudgetCleared: false,
+      creditCardCleared: false,
+      cutoffDate: '2026-09-30',
+    });
     expect(onBudgetBinding.name).toBe('onbudget-accounts-balance');
     expect(onBudgetBinding.query).toBeDefined();
 
-    const allAccountsBinding =
-      bindings.allAccountBalanceWithCreditCards('2026-09-30');
+    const allAccountsBinding = bindings.allAccountBalanceWithViews({
+      onBudgetCleared: true,
+      creditCardCleared: true,
+      cutoffDate: '2026-09-30',
+    });
     expect(allAccountsBinding.name).toBe('accounts-balance');
     expect(allAccountsBinding.query).toBeDefined();
   });
