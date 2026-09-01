@@ -51,7 +51,7 @@ export const accountNameStyle: CSSProperties = {
 
 type AccountProps<FieldName extends SheetFields<'account'>> = {
   name: string;
-  to: string;
+  to?: string;
   query: Binding<'account', FieldName>;
   account?: AccountEntity;
   connected?: boolean;
@@ -180,131 +180,187 @@ export function Account<FieldName extends SheetFields<'account'>>({
       <View innerRef={triggerRef}>
         <DropHighlight pos={dropPos} />
         <View innerRef={handleDragRef}>
-          <Link
-            variant="internal"
-            to={to}
-            isDisabled={isEditing}
-            isExactPathMatch={isExactPathMatch}
-            style={{
-              ...accountNameStyle,
-              ...style,
-              position: 'relative',
-              borderLeft: '4px solid transparent',
-              ...(updated && {
-                fontWeight: 700,
-                color: theme.sidebarItemTextUpdated,
-              }),
-            }}
-            activeStyle={{
-              borderColor: theme.sidebarItemAccentSelected,
-              color: theme.sidebarItemTextSelected,
-              // This is kind of a hack, but we don't ever want the account
-              // that the user is looking at to be "bolded" which means it
-              // has unread transactions. The system does mark is read and
-              // unbolds it, but it still "flashes" bold so this just
-              // ignores it if it's active
-              fontWeight: (style && style.fontWeight) || 'normal',
-              '& .dot': {
-                backgroundColor: theme.sidebarItemAccentSelected,
-                transform: 'translateX(-4.5px)',
-              },
-            }}
-          >
-            <View
+          {to ? (
+            <Link
+              variant="internal"
+              to={to}
+              isDisabled={isEditing}
+              isExactPathMatch={isExactPathMatch}
               style={{
-                position: 'absolute',
-                left: 0,
-                top: 0,
-                bottom: 0,
-                flexDirection: 'row',
-                alignItems: 'center',
+                ...accountNameStyle,
+                ...style,
+                position: 'relative',
+                borderLeft: '4px solid transparent',
+                ...(updated && {
+                  fontWeight: 700,
+                  color: theme.sidebarItemTextUpdated,
+                }),
+              }}
+              activeStyle={{
+                borderColor: theme.sidebarItemAccentSelected,
+                color: theme.sidebarItemTextSelected,
+                // This is kind of a hack, but we don't ever want the account
+                // that the user is looking at to be "bolded" which means it
+                // has unread transactions. The system does mark is read and
+                // unbolds it, but it still "flashes" bold so this just
+                // ignores it if it's active
+                fontWeight: (style && style.fontWeight) || 'normal',
+                '& .dot': {
+                  backgroundColor: theme.sidebarItemAccentSelected,
+                  transform: 'translateX(-4.5px)',
+                },
               }}
             >
-              <div
-                className={cx(
-                  'dot',
-                  css({
-                    marginRight: 3,
-                    width: 5,
-                    height: 5,
-                    borderRadius: 5,
-                    backgroundColor: pending
-                      ? theme.sidebarItemBackgroundPending
-                      : failed
-                        ? theme.sidebarItemBackgroundFailed
-                        : theme.sidebarItemBackgroundPositive,
-                    marginLeft: 2,
-                    transition: 'transform .3s',
-                    opacity: connected ? 1 : 0,
-                  }),
-                )}
-              />
-            </View>
+              <View
+                style={{
+                  position: 'absolute',
+                  left: 0,
+                  top: 0,
+                  bottom: 0,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                }}
+              >
+                <div
+                  className={cx(
+                    'dot',
+                    css({
+                      marginRight: 3,
+                      width: 5,
+                      height: 5,
+                      borderRadius: 5,
+                      backgroundColor: pending
+                        ? theme.sidebarItemBackgroundPending
+                        : failed
+                          ? theme.sidebarItemBackgroundFailed
+                          : theme.sidebarItemBackgroundPositive,
+                      marginLeft: 2,
+                      transition: 'transform .3s',
+                      opacity: connected ? 1 : 0,
+                    }),
+                  )}
+                />
+              </View>
 
-            <AlignedText
-              style={
-                titleAccount && {
-                  borderBottom: `1.5px solid rgba(255,255,255,0.4)`,
-                  paddingBottom: '3px',
+              <AlignedText
+                style={
+                  titleAccount && {
+                    borderBottom: `1.5px solid rgba(255,255,255,0.4)`,
+                    paddingBottom: '3px',
+                  }
                 }
-              }
-              left={
-                isEditing ? (
-                  <InitialFocus>
-                    <Input
+                left={
+                  isEditing ? (
+                    <InitialFocus>
+                      <Input
+                        style={{
+                          padding: 0,
+                          width: '100%',
+                        }}
+                        onBlur={() => setIsEditing(false)}
+                        onEnter={newAccountName => {
+                          if (newAccountName.trim() !== '') {
+                            updateAccount.mutate({
+                              account: {
+                                ...account,
+                                name: newAccountName,
+                              },
+                            });
+                          }
+                          setIsEditing(false);
+                        }}
+                        onEscape={() => setIsEditing(false)}
+                        defaultValue={name}
+                      />
+                    </InitialFocus>
+                  ) : action ? (
+                    <View
                       style={{
-                        padding: 0,
-                        width: '100%',
-                      }}
-                      onBlur={() => setIsEditing(false)}
-                      onEnter={newAccountName => {
-                        if (newAccountName.trim() !== '') {
-                          updateAccount.mutate({
-                            account: {
-                              ...account,
-                              name: newAccountName,
-                            },
-                          });
-                        }
-                        setIsEditing(false);
-                      }}
-                      onEscape={() => setIsEditing(false)}
-                      defaultValue={name}
-                    />
-                  </InitialFocus>
-                ) : action ? (
-                  <View
-                    style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      gap: 4,
-                      minWidth: 0,
-                    }}
-                  >
-                    <Text
-                      style={{
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        gap: 4,
+                        minWidth: 0,
                       }}
                     >
-                      {name}
-                    </Text>
-                    {action}
-                  </View>
-                ) : (
-                  name
-                )
-              }
-              right={
-                balanceTestId ? (
-                  <View data-testid={balanceTestId}>{balanceCell}</View>
-                ) : (
-                  balanceCell
-                )
-              }
-            />
-          </Link>
+                      <Text
+                        style={{
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {name}
+                      </Text>
+                      {action}
+                    </View>
+                  ) : (
+                    name
+                  )
+                }
+                right={
+                  balanceTestId ? (
+                    <View data-testid={balanceTestId}>{balanceCell}</View>
+                  ) : (
+                    balanceCell
+                  )
+                }
+              />
+            </Link>
+          ) : (
+            <View
+              style={{
+                ...accountNameStyle,
+                ...style,
+                position: 'relative',
+                borderLeft: '4px solid transparent',
+                ...(updated && {
+                  fontWeight: 700,
+                  color: theme.sidebarItemTextUpdated,
+                }),
+              }}
+            >
+              <AlignedText
+                style={
+                  titleAccount && {
+                    borderBottom: `1.5px solid rgba(255,255,255,0.4)`,
+                    paddingBottom: '3px',
+                  }
+                }
+                left={
+                  action ? (
+                    <View
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        gap: 4,
+                        minWidth: 0,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {name}
+                      </Text>
+                      {action}
+                    </View>
+                  ) : (
+                    name
+                  )
+                }
+                right={
+                  balanceTestId ? (
+                    <View data-testid={balanceTestId}>{balanceCell}</View>
+                  ) : (
+                    balanceCell
+                  )
+                }
+              />
+            </View>
+          )}
         </View>
       </View>
     </View>
