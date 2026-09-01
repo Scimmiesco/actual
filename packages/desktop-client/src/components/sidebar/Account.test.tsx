@@ -156,6 +156,16 @@ describe('sidebar Account context menu', () => {
     const totalCleared = bindings.creditCardsTotalBalanceCleared();
     expect(totalCleared.name).toBe('onbudget-credit-cards-balance-cleared');
     expect(totalCleared.query).toBeDefined();
+
+    const checkingTotal = bindings.checkingAccountsTotalBalance();
+    expect(checkingTotal.name).toBe('onbudget-checking-accounts-balance');
+    expect(checkingTotal.query).toBeDefined();
+
+    const checkingTotalCleared = bindings.checkingAccountsTotalBalanceCleared();
+    expect(checkingTotalCleared.name).toBe(
+      'onbudget-checking-accounts-balance-cleared',
+    );
+    expect(checkingTotalCleared.query).toBeDefined();
   });
 
   it('provides onBudgetAccountBalanceWithViews and allAccountBalanceWithViews bindings', () => {

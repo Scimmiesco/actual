@@ -148,51 +148,71 @@ export function Accounts() {
             }}
             titleAccount
             balanceTestId="sidebar-on-budget-balance"
-            action={
-              <Button
-                variant="bare"
-                aria-label={
-                  isOnBudgetCleared
-                    ? t('Switch to all transactions balance')
-                    : t('Switch to cleared balance only')
-                }
-                onClick={onToggleOnBudgetBalanceView}
-                style={({ isHovered }) => ({
-                  padding: 2,
-                  borderRadius: 3,
-                  color: isOnBudgetCleared
-                    ? theme.sidebarItemTextSelected
-                    : theme.sidebarItemText,
-                  opacity: isHovered ? 1 : 0.8,
-                })}
-                data-testid="toggle-sidebar-onbudget-balance-view"
-              >
-                <SvgSwap width={11} height={11} />
-              </Button>
-            }
           />
         )}
 
-        {onBudgetNonCreditAccounts.map((account, i) => (
-          <Account
-            key={account.id}
-            name={account.name}
-            account={account}
-            connected={!!account.bank}
-            pending={syncingAccountIds.includes(account.id)}
-            failed={isAccountFailedSync(account)}
-            updated={updatedAccounts.includes(account.id)}
-            to={getAccountPath(account)}
-            query={
-              isOnBudgetCleared
-                ? bindings.accountBalanceCleared(account.id)
-                : bindings.accountBalance(account.id)
-            }
-            onDragChange={onDragChange}
-            onDrop={onReorder}
-            outerStyle={makeDropPadding(i)}
-          />
-        ))}
+        {onBudgetNonCreditAccounts.length > 0 && (
+          <>
+            <Account
+              name={t('Checking accounts')}
+              to="/accounts/onbudget"
+              query={
+                isOnBudgetCleared
+                  ? bindings.checkingAccountsTotalBalanceCleared()
+                  : bindings.checkingAccountsTotalBalance()
+              }
+              style={{
+                fontWeight,
+                marginTop: 8,
+                marginBottom: 5,
+              }}
+              titleAccount
+              balanceTestId="sidebar-checking-accounts-balance"
+              action={
+                <Button
+                  variant="bare"
+                  aria-label={
+                    isOnBudgetCleared
+                      ? t('Switch to all transactions balance')
+                      : t('Switch to cleared balance only')
+                  }
+                  onClick={onToggleOnBudgetBalanceView}
+                  style={({ isHovered }) => ({
+                    padding: 2,
+                    borderRadius: 3,
+                    color: isOnBudgetCleared
+                      ? theme.sidebarItemTextSelected
+                      : theme.sidebarItemText,
+                    opacity: isHovered ? 1 : 0.8,
+                  })}
+                  data-testid="toggle-sidebar-checking-balance-view"
+                >
+                  <SvgSwap width={11} height={11} />
+                </Button>
+              }
+            />
+            {onBudgetNonCreditAccounts.map((account, i) => (
+              <Account
+                key={account.id}
+                name={account.name}
+                account={account}
+                connected={!!account.bank}
+                pending={syncingAccountIds.includes(account.id)}
+                failed={isAccountFailedSync(account)}
+                updated={updatedAccounts.includes(account.id)}
+                to={getAccountPath(account)}
+                query={
+                  isOnBudgetCleared
+                    ? bindings.accountBalanceCleared(account.id)
+                    : bindings.accountBalance(account.id)
+                }
+                onDragChange={onDragChange}
+                onDrop={onReorder}
+                outerStyle={makeDropPadding(i)}
+              />
+            ))}
+          </>
+        )}
 
         {onBudgetCreditAccounts.length > 0 && (
           <>

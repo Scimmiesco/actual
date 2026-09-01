@@ -185,6 +185,33 @@ export function onBudgetAccountBalanceWithCreditCards(cutoffDate?: string) {
   } satisfies Binding<'account', 'onbudget-accounts-balance'>;
 }
 
+export function checkingAccountsTotalBalance() {
+  return {
+    name: 'onbudget-checking-accounts-balance',
+    query: q('transactions')
+      .filter({
+        'account.offbudget': false,
+        'account.closed': false,
+        $or: [{ 'account.type': { $ne: 'credit' } }, { 'account.type': null }],
+      })
+      .calculate({ $sum: '$amount' }),
+  } satisfies Binding<'account', 'onbudget-checking-accounts-balance'>;
+}
+
+export function checkingAccountsTotalBalanceCleared() {
+  return {
+    name: 'onbudget-checking-accounts-balance-cleared',
+    query: q('transactions')
+      .filter({
+        'account.offbudget': false,
+        'account.closed': false,
+        $or: [{ 'account.type': { $ne: 'credit' } }, { 'account.type': null }],
+        cleared: true,
+      })
+      .calculate({ $sum: '$amount' }),
+  } satisfies Binding<'account', 'onbudget-checking-accounts-balance-cleared'>;
+}
+
 export function creditCardsTotalBalance(cutoffDate?: string) {
   const currentMonth = monthUtils.currentMonth();
   const cutoff = cutoffDate || monthUtils.lastDayOfMonth(currentMonth);
