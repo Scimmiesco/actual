@@ -84,4 +84,67 @@ describe('ScheduledCashFlowTable', () => {
       screen.getByText('No scheduled transactions found'),
     ).toBeInTheDocument();
   });
+
+  it('renders credit card bills alongside schedules with correct formatting', () => {
+    const mixedOccurrences: ScheduledCashFlowOccurrence[] = [
+      {
+        date: '2026-09-01',
+        accountId: 'checking',
+        accountName: 'Checking Account',
+        payee: 'Landlord',
+        categoryId: 'rent',
+        categoryName: 'Rent',
+        amount: -120000,
+        scheduleName: 'Rent',
+      },
+      {
+        date: '2026-09-10',
+        accountId: 'card-1',
+        accountName: 'Credit Card A',
+        payee: 'Card A Statement',
+        categoryId: 'cc',
+        categoryName: 'Credit Card',
+        amount: -200000,
+        scheduleName: 'Transaction',
+      },
+      {
+        date: '2026-09-10',
+        accountId: 'card-2',
+        accountName: 'Credit Card B',
+        payee: 'Card B Statement',
+        categoryId: 'cc',
+        categoryName: 'Credit Card',
+        amount: -150000,
+        scheduleName: 'Transaction',
+      },
+      {
+        date: '2026-09-10',
+        accountId: 'card-3',
+        accountName: 'Credit Card C',
+        payee: 'Card C Statement',
+        categoryId: 'cc',
+        categoryName: 'Credit Card',
+        amount: -213777,
+        scheduleName: 'Transaction',
+      },
+    ];
+
+    render(
+      <TestProviders>
+        <ScheduledCashFlowTable occurrences={mixedOccurrences} />
+      </TestProviders>,
+    );
+
+    expect(screen.getByText('Landlord')).toBeInTheDocument();
+    expect(screen.getByText('-1,200.00')).toBeInTheDocument();
+
+    expect(screen.getByText('Credit Card A')).toBeInTheDocument();
+    expect(screen.getByText('-2,000.00')).toBeInTheDocument();
+
+    expect(screen.getByText('Credit Card B')).toBeInTheDocument();
+    expect(screen.getByText('-1,500.00')).toBeInTheDocument();
+
+    expect(screen.getByText('Credit Card C')).toBeInTheDocument();
+    expect(screen.getByText('-2,137.77')).toBeInTheDocument();
+  });
 });
