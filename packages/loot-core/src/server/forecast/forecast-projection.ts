@@ -182,11 +182,14 @@ function summarizePostedTransactions(
   };
 
   for (const tx of accountTransactions) {
-    const effectiveDate = tx.charge_date || tx.date;
+    let effectiveDate = tx.charge_date || tx.date;
 
     if (effectiveDate < forecastStartDate) {
-      summary.startingBalance += tx.amount;
-      continue;
+      if (tx.cleared !== false || tx.starting_balance_flag) {
+        summary.startingBalance += tx.amount;
+        continue;
+      }
+      effectiveDate = forecastStartDate;
     }
 
     if (effectiveDate > forecastEndDate) {

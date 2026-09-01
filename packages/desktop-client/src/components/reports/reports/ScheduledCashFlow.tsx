@@ -146,7 +146,7 @@ function ScheduledCashFlowInner({ widget }: ScheduledCashFlowInnerProps) {
     error,
     isPending: isForecastPending,
   } = useBalanceForecast({
-    accountIds: selectedAccountIds,
+    accountIds: selectedAccountIds.length > 0 ? selectedAccountIds : undefined,
     conditions,
     conditionsOp,
     startDate: forecastStartDate,

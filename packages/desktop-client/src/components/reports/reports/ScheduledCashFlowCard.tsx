@@ -54,7 +54,7 @@ export function ScheduledCashFlowCard({
   const selectedAccountIds =
     meta?.accounts ?? loadedAccounts.map(account => account.id);
   const { data: forecastData, isPending } = useBalanceForecast({
-    accountIds: selectedAccountIds,
+    accountIds: selectedAccountIds.length > 0 ? selectedAccountIds : undefined,
     conditions: meta?.conditions,
     conditionsOp: meta?.conditionsOp,
     startDate: monthUtils.firstDayOfMonth(start),

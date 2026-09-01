@@ -145,4 +145,60 @@ describe('forecast projection', () => {
       { amount: -50, scheduleName: 'Transaction' },
     ]);
   });
+
+  it('projects uncleared pending transactions prior to forecastStartDate into forecastStartDate', () => {
+    const accounts: AccountWithComputedBalance[] = [
+      {
+        id: 'credit-acct-2',
+        name: 'Credit Card 2',
+        closed: 0,
+        offbudget: 0,
+        balance_current: -5637.77,
+      },
+    ];
+    const transactions: TransactionEntity[] = [
+      {
+        id: 'uncleared-bill-1',
+        account: 'credit-acct-2',
+        amount: -2000,
+        date: '2024-02-20',
+        cleared: false,
+      },
+      {
+        id: 'uncleared-bill-2',
+        account: 'credit-acct-2',
+        amount: -3637.77,
+        date: '2024-02-25',
+        cleared: false,
+      },
+    ];
+    const filterInfo: ForecastFilterInfo = {
+      filters: [],
+      conditionsOpKey: '$and',
+      canRestrictAccounts: false,
+    };
+    const dateContext: ForecastDateContext = {
+      forecastStartDate: '2024-03-01',
+      forecastEndDate: '2024-03-15',
+      forecastDays: ['2024-03-01', '2024-03-02'],
+      firstForecastDate: '2024-03-01',
+      endDateObj: new Date('2024-03-15T00:00:00'),
+    };
+
+    const result = projectForecastData({
+      accounts,
+      transactions,
+      futureOccurrences: [],
+      filterInfo,
+      dateContext,
+    });
+
+    const march01Point = result.dataPoints.find(p => p.date === '2024-03-01');
+    expect(march01Point).toBeDefined();
+    expect(march01Point?.transactions).toHaveLength(2);
+    expect(march01Point?.transactions).toMatchObject([
+      { amount: -2000, scheduleName: 'Transaction' },
+      { amount: -3637.77, scheduleName: 'Transaction' },
+    ]);
+  });
 });
