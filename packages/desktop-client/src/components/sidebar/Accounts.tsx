@@ -110,7 +110,7 @@ export function Accounts() {
           query={
             isOnBudgetCleared
               ? bindings.allAccountBalanceWithOnBudgetCleared()
-              : bindings.allAccountBalance()
+              : bindings.allAccountBalanceWithCreditCards()
           }
           style={{ fontWeight, marginTop: 15 }}
           isExactPathMatch
@@ -124,7 +124,7 @@ export function Accounts() {
             query={
               isOnBudgetCleared
                 ? bindings.onBudgetAccountBalanceCleared()
-                : bindings.onBudgetAccountBalance()
+                : bindings.onBudgetAccountBalanceWithCreditCards()
             }
             style={{
               fontWeight,
@@ -171,7 +171,9 @@ export function Accounts() {
             query={
               isOnBudgetCleared
                 ? bindings.accountBalanceCleared(account.id)
-                : bindings.accountBalance(account.id)
+                : account.type === 'credit'
+                  ? bindings.creditCardAccountBalance(account.id)
+                  : bindings.accountBalance(account.id)
             }
             onDragChange={onDragChange}
             onDrop={onReorder}

@@ -1,3 +1,4 @@
+import * as monthUtils from '@actual-app/core/shared/months';
 import { q } from '@actual-app/core/shared/query';
 import type {
   AccountEntity,
@@ -49,12 +50,101 @@ export function accountBalanceUncleared(accountId: AccountEntity['id']) {
   } satisfies Binding<'account', 'balanceUncleared'>;
 }
 
+export function creditCardAccountBalance(
+  accountId: AccountEntity['id'],
+  cutoffDate?: string,
+) {
+  const currentMonth = monthUtils.currentMonth();
+  const cutoff = cutoffDate || monthUtils.lastDayOfMonth(currentMonth);
+
+  return {
+    name: accountParametrizedField('balanceCreditCard')(accountId),
+    query: q('transactions')
+      .filter({
+        account: accountId,
+        $or: [
+          { cleared: true },
+          {
+            $and: [
+              { cleared: false },
+              {
+                $or: [
+                  { charge_date: { $lte: cutoff } },
+                  {
+                    $and: [{ charge_date: null }, { date: { $lte: cutoff } }],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      })
+      .options({ splits: 'none' })
+      .calculate({ $sum: '$amount' }),
+  } satisfies Binding<'account', 'balanceCreditCard'>;
+}
+
 export function allAccountBalance() {
   return {
     query: q('transactions')
       .filter({ 'account.closed': false })
       .calculate({ $sum: '$amount' }),
     name: 'accounts-balance',
+  } satisfies Binding<'account', 'accounts-balance'>;
+}
+
+export function allAccountBalanceWithCreditCards(cutoffDate?: string) {
+  const currentMonth = monthUtils.currentMonth();
+  const cutoff = cutoffDate || monthUtils.lastDayOfMonth(currentMonth);
+
+  return {
+    name: 'accounts-balance',
+    query: q('transactions')
+      .filter({
+        'account.closed': false,
+        $or: [
+          { 'account.offbudget': true },
+          {
+            $and: [
+              { 'account.offbudget': false },
+              {
+                $or: [
+                  { 'account.type': { $ne: 'credit' } },
+                  { 'account.type': null },
+                ],
+              },
+            ],
+          },
+          {
+            $and: [
+              { 'account.offbudget': false },
+              { 'account.type': 'credit' },
+              {
+                $or: [
+                  { cleared: true },
+                  {
+                    $and: [
+                      { cleared: false },
+                      {
+                        $or: [
+                          { charge_date: { $lte: cutoff } },
+                          {
+                            $and: [
+                              { charge_date: null },
+                              { date: { $lte: cutoff } },
+                            ],
+                          },
+                        ],
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      })
+      .calculate({ $sum: '$amount' }),
   } satisfies Binding<'account', 'accounts-balance'>;
 }
 
@@ -75,6 +165,55 @@ export function onBudgetAccountBalance() {
     name: `onbudget-accounts-balance`,
     query: q('transactions')
       .filter({ 'account.offbudget': false, 'account.closed': false })
+      .calculate({ $sum: '$amount' }),
+  } satisfies Binding<'account', 'onbudget-accounts-balance'>;
+}
+
+export function onBudgetAccountBalanceWithCreditCards(cutoffDate?: string) {
+  const currentMonth = monthUtils.currentMonth();
+  const cutoff = cutoffDate || monthUtils.lastDayOfMonth(currentMonth);
+
+  return {
+    name: `onbudget-accounts-balance`,
+    query: q('transactions')
+      .filter({
+        'account.offbudget': false,
+        'account.closed': false,
+        $or: [
+          {
+            $or: [
+              { 'account.type': { $ne: 'credit' } },
+              { 'account.type': null },
+            ],
+          },
+          {
+            $and: [
+              { 'account.type': 'credit' },
+              {
+                $or: [
+                  { cleared: true },
+                  {
+                    $and: [
+                      { cleared: false },
+                      {
+                        $or: [
+                          { charge_date: { $lte: cutoff } },
+                          {
+                            $and: [
+                              { charge_date: null },
+                              { date: { $lte: cutoff } },
+                            ],
+                          },
+                        ],
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      })
       .calculate({ $sum: '$amount' }),
   } satisfies Binding<'account', 'onbudget-accounts-balance'>;
 }

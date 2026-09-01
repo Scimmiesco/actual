@@ -143,4 +143,22 @@ describe('sidebar Account context menu', () => {
     fireEvent.click(actionButton);
     expect(onActionClick).toHaveBeenCalledTimes(1);
   });
+
+  it('provides creditCardAccountBalance binding filtering for closest invoice and cleared', () => {
+    const binding = bindings.creditCardAccountBalance('acct-1', '2026-09-30');
+    expect(binding.name).toBe('balanceCreditCard-acct-1');
+    expect(binding.query).toBeDefined();
+  });
+
+  it('provides onBudgetAccountBalanceWithCreditCards and allAccountBalanceWithCreditCards bindings', () => {
+    const onBudgetBinding =
+      bindings.onBudgetAccountBalanceWithCreditCards('2026-09-30');
+    expect(onBudgetBinding.name).toBe('onbudget-accounts-balance');
+    expect(onBudgetBinding.query).toBeDefined();
+
+    const allAccountsBinding =
+      bindings.allAccountBalanceWithCreditCards('2026-09-30');
+    expect(allAccountsBinding.name).toBe('accounts-balance');
+    expect(allAccountsBinding.query).toBeDefined();
+  });
 });

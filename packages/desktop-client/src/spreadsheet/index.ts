@@ -17,6 +17,7 @@ export type Spreadsheets = {
     'closed-accounts-balance': number;
     balanceCleared: number;
     balanceUncleared: number;
+    balanceCreditCard: number;
     lastReconciled: string | null;
   };
   category: {
