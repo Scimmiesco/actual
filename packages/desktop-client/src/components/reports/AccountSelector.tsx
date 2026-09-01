@@ -1,4 +1,4 @@
-import React, { useId, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 
 import { Button } from '@actual-app/components/button';
@@ -28,7 +28,6 @@ export function AccountSelector({
   setSelectedAccountIds,
 }: AccountSelectorProps) {
   const { t } = useTranslation();
-  const idPrefix = useId();
   const [uncheckedHidden, setUncheckedHidden] = useState(false);
 
   // Group accounts by checking, credit cards, off-budget, and closed
@@ -194,23 +193,26 @@ export function AccountSelector({
             <li
               style={{
                 display: !onBudgetSelected && uncheckedHidden ? 'none' : 'flex',
-                flexDirection: 'row',
                 alignItems: 'center',
                 marginBottom: 8,
                 marginTop: 8,
               }}
             >
-              <Checkbox
-                id={`${idPrefix}-group-onbudget`}
-                checked={onBudgetSelected}
-                onChange={() =>
-                  toggleAccountGroup(onBudgetAccountIds, onBudgetSelected)
-                }
-              />
               <label
-                htmlFor={`${idPrefix}-group-onbudget`}
-                style={{ userSelect: 'none', fontWeight: 'bold' }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  cursor: 'pointer',
+                  userSelect: 'none',
+                  fontWeight: 'bold',
+                }}
               >
+                <Checkbox
+                  checked={onBudgetSelected}
+                  onChange={() =>
+                    toggleAccountGroup(onBudgetAccountIds, onBudgetSelected)
+                  }
+                />
                 <Trans>On Budget</Trans>
               </label>
             </li>
@@ -222,65 +224,72 @@ export function AccountSelector({
                   style={{
                     display:
                       !checkingSelected && uncheckedHidden ? 'none' : 'flex',
-                    flexDirection: 'row',
                     alignItems: 'center',
                     marginBottom: 6,
                     marginTop: 4,
                     marginLeft: 16,
                   }}
                 >
-                  <Checkbox
-                    id={`${idPrefix}-subgroup-checking`}
-                    checked={checkingSelected}
-                    onChange={() =>
-                      toggleAccountGroup(
-                        groupedAccounts.checking.map(a => a.id),
-                        checkingSelected,
-                      )
-                    }
-                  />
                   <label
-                    htmlFor={`${idPrefix}-subgroup-checking`}
-                    style={{ userSelect: 'none', fontWeight: 600 }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      cursor: 'pointer',
+                      userSelect: 'none',
+                      fontWeight: 600,
+                    }}
                   >
+                    <Checkbox
+                      checked={checkingSelected}
+                      onChange={() =>
+                        toggleAccountGroup(
+                          groupedAccounts.checking.map(a => a.id),
+                          checkingSelected,
+                        )
+                      }
+                    />
                     <Trans>Checking accounts</Trans>
                   </label>
                 </li>
                 {groupedAccounts.checking.map(account => {
                   const isChecked = selectedAccountMap.has(account.id);
-                  const inputId = `${idPrefix}-account-${account.id}`;
                   return (
                     <li
                       key={account.id}
                       style={{
                         display:
                           !isChecked && uncheckedHidden ? 'none' : 'flex',
-                        flexDirection: 'row',
                         alignItems: 'center',
                         marginBottom: 4,
                         marginLeft: 32,
                       }}
                     >
-                      <Checkbox
-                        id={inputId}
-                        checked={isChecked}
-                        onChange={() => {
-                          if (isChecked) {
-                            setSelectedAccountIds(
-                              selectedAccountIds.filter(
-                                id => id !== account.id,
-                              ),
-                            );
-                          } else {
-                            setSelectedAccountIds([
-                              ...selectedAccountIds,
-                              account.id,
-                            ]);
-                          }
+                      <label
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          cursor: 'pointer',
+                          userSelect: 'none',
                         }}
-                      />
-                      <label htmlFor={inputId} style={{ userSelect: 'none' }}>
-                        {account.name}
+                      >
+                        <Checkbox
+                          checked={isChecked}
+                          onChange={() => {
+                            if (isChecked) {
+                              setSelectedAccountIds(
+                                selectedAccountIds.filter(
+                                  id => id !== account.id,
+                                ),
+                              );
+                            } else {
+                              setSelectedAccountIds([
+                                ...selectedAccountIds,
+                                account.id,
+                              ]);
+                            }
+                          }}
+                        />
+                        <Text>{account.name}</Text>
                       </label>
                     </li>
                   );
@@ -295,65 +304,72 @@ export function AccountSelector({
                   style={{
                     display:
                       !creditSelected && uncheckedHidden ? 'none' : 'flex',
-                    flexDirection: 'row',
                     alignItems: 'center',
                     marginBottom: 6,
                     marginTop: 8,
                     marginLeft: 16,
                   }}
                 >
-                  <Checkbox
-                    id={`${idPrefix}-subgroup-credit`}
-                    checked={creditSelected}
-                    onChange={() =>
-                      toggleAccountGroup(
-                        groupedAccounts.credit.map(a => a.id),
-                        creditSelected,
-                      )
-                    }
-                  />
                   <label
-                    htmlFor={`${idPrefix}-subgroup-credit`}
-                    style={{ userSelect: 'none', fontWeight: 600 }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      cursor: 'pointer',
+                      userSelect: 'none',
+                      fontWeight: 600,
+                    }}
                   >
+                    <Checkbox
+                      checked={creditSelected}
+                      onChange={() =>
+                        toggleAccountGroup(
+                          groupedAccounts.credit.map(a => a.id),
+                          creditSelected,
+                        )
+                      }
+                    />
                     <Trans>Credit cards</Trans>
                   </label>
                 </li>
                 {groupedAccounts.credit.map(account => {
                   const isChecked = selectedAccountMap.has(account.id);
-                  const inputId = `${idPrefix}-account-${account.id}`;
                   return (
                     <li
                       key={account.id}
                       style={{
                         display:
                           !isChecked && uncheckedHidden ? 'none' : 'flex',
-                        flexDirection: 'row',
                         alignItems: 'center',
                         marginBottom: 4,
                         marginLeft: 32,
                       }}
                     >
-                      <Checkbox
-                        id={inputId}
-                        checked={isChecked}
-                        onChange={() => {
-                          if (isChecked) {
-                            setSelectedAccountIds(
-                              selectedAccountIds.filter(
-                                id => id !== account.id,
-                              ),
-                            );
-                          } else {
-                            setSelectedAccountIds([
-                              ...selectedAccountIds,
-                              account.id,
-                            ]);
-                          }
+                      <label
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          cursor: 'pointer',
+                          userSelect: 'none',
                         }}
-                      />
-                      <label htmlFor={inputId} style={{ userSelect: 'none' }}>
-                        {account.name}
+                      >
+                        <Checkbox
+                          checked={isChecked}
+                          onChange={() => {
+                            if (isChecked) {
+                              setSelectedAccountIds(
+                                selectedAccountIds.filter(
+                                  id => id !== account.id,
+                                ),
+                              );
+                            } else {
+                              setSelectedAccountIds([
+                                ...selectedAccountIds,
+                                account.id,
+                              ]);
+                            }
+                          }}
+                        />
+                        <Text>{account.name}</Text>
                       </label>
                     </li>
                   );
@@ -370,61 +386,68 @@ export function AccountSelector({
               style={{
                 display:
                   !offBudgetSelected && uncheckedHidden ? 'none' : 'flex',
-                flexDirection: 'row',
                 alignItems: 'center',
                 marginBottom: 8,
                 marginTop: 16,
               }}
             >
-              <Checkbox
-                id={`${idPrefix}-group-offbudget`}
-                checked={offBudgetSelected}
-                onChange={() =>
-                  toggleAccountGroup(
-                    groupedAccounts.offBudget.map(a => a.id),
-                    offBudgetSelected,
-                  )
-                }
-              />
               <label
-                htmlFor={`${idPrefix}-group-offbudget`}
-                style={{ userSelect: 'none', fontWeight: 'bold' }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  cursor: 'pointer',
+                  userSelect: 'none',
+                  fontWeight: 'bold',
+                }}
               >
+                <Checkbox
+                  checked={offBudgetSelected}
+                  onChange={() =>
+                    toggleAccountGroup(
+                      groupedAccounts.offBudget.map(a => a.id),
+                      offBudgetSelected,
+                    )
+                  }
+                />
                 <Trans>Off Budget</Trans>
               </label>
             </li>
             {groupedAccounts.offBudget.map(account => {
               const isChecked = selectedAccountMap.has(account.id);
-              const inputId = `${idPrefix}-account-${account.id}`;
               return (
                 <li
                   key={account.id}
                   style={{
                     display: !isChecked && uncheckedHidden ? 'none' : 'flex',
-                    flexDirection: 'row',
                     alignItems: 'center',
                     marginBottom: 4,
                     marginLeft: 16,
                   }}
                 >
-                  <Checkbox
-                    id={inputId}
-                    checked={isChecked}
-                    onChange={() => {
-                      if (isChecked) {
-                        setSelectedAccountIds(
-                          selectedAccountIds.filter(id => id !== account.id),
-                        );
-                      } else {
-                        setSelectedAccountIds([
-                          ...selectedAccountIds,
-                          account.id,
-                        ]);
-                      }
+                  <label
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      cursor: 'pointer',
+                      userSelect: 'none',
                     }}
-                  />
-                  <label htmlFor={inputId} style={{ userSelect: 'none' }}>
-                    {account.name}
+                  >
+                    <Checkbox
+                      checked={isChecked}
+                      onChange={() => {
+                        if (isChecked) {
+                          setSelectedAccountIds(
+                            selectedAccountIds.filter(id => id !== account.id),
+                          );
+                        } else {
+                          setSelectedAccountIds([
+                            ...selectedAccountIds,
+                            account.id,
+                          ]);
+                        }
+                      }}
+                    />
+                    <Text>{account.name}</Text>
                   </label>
                 </li>
               );
@@ -438,61 +461,68 @@ export function AccountSelector({
             <li
               style={{
                 display: !closedSelected && uncheckedHidden ? 'none' : 'flex',
-                flexDirection: 'row',
                 alignItems: 'center',
                 marginBottom: 8,
                 marginTop: 16,
               }}
             >
-              <Checkbox
-                id={`${idPrefix}-group-closed`}
-                checked={closedSelected}
-                onChange={() =>
-                  toggleAccountGroup(
-                    groupedAccounts.closed.map(a => a.id),
-                    closedSelected,
-                  )
-                }
-              />
               <label
-                htmlFor={`${idPrefix}-group-closed`}
-                style={{ userSelect: 'none', fontWeight: 'bold' }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  cursor: 'pointer',
+                  userSelect: 'none',
+                  fontWeight: 'bold',
+                }}
               >
+                <Checkbox
+                  checked={closedSelected}
+                  onChange={() =>
+                    toggleAccountGroup(
+                      groupedAccounts.closed.map(a => a.id),
+                      closedSelected,
+                    )
+                  }
+                />
                 <Trans>Closed</Trans>
               </label>
             </li>
             {groupedAccounts.closed.map(account => {
               const isChecked = selectedAccountMap.has(account.id);
-              const inputId = `${idPrefix}-account-${account.id}`;
               return (
                 <li
                   key={account.id}
                   style={{
                     display: !isChecked && uncheckedHidden ? 'none' : 'flex',
-                    flexDirection: 'row',
                     alignItems: 'center',
                     marginBottom: 4,
                     marginLeft: 16,
                   }}
                 >
-                  <Checkbox
-                    id={inputId}
-                    checked={isChecked}
-                    onChange={() => {
-                      if (isChecked) {
-                        setSelectedAccountIds(
-                          selectedAccountIds.filter(id => id !== account.id),
-                        );
-                      } else {
-                        setSelectedAccountIds([
-                          ...selectedAccountIds,
-                          account.id,
-                        ]);
-                      }
+                  <label
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      cursor: 'pointer',
+                      userSelect: 'none',
                     }}
-                  />
-                  <label htmlFor={inputId} style={{ userSelect: 'none' }}>
-                    {account.name}
+                  >
+                    <Checkbox
+                      checked={isChecked}
+                      onChange={() => {
+                        if (isChecked) {
+                          setSelectedAccountIds(
+                            selectedAccountIds.filter(id => id !== account.id),
+                          );
+                        } else {
+                          setSelectedAccountIds([
+                            ...selectedAccountIds,
+                            account.id,
+                          ]);
+                        }
+                      }}
+                    />
+                    <Text>{account.name}</Text>
                   </label>
                 </li>
               );
