@@ -1,15 +1,18 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { useParams } from 'react-router';
 
 import { AlignedText } from '@actual-app/components/aligned-text';
 import { Button } from '@actual-app/components/button';
 import { useResponsive } from '@actual-app/components/hooks/useResponsive';
+import { SvgWallet } from '@actual-app/components/icons/v1';
+import { Popover } from '@actual-app/components/popover';
 import { Select } from '@actual-app/components/select';
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
 import * as monthUtils from '@actual-app/core/shared/months';
 import type {
+  AccountEntity,
   RuleConditionEntity,
   ScheduledCashFlowWidget,
   TimeFrame,
@@ -43,6 +46,58 @@ const defaultTimeFrame = {
   end: monthUtils.addMonths(monthUtils.currentMonth(), 11),
   mode: 'static',
 } satisfies TimeFrame;
+
+type AccountSelectPopoverProps = {
+  accounts: AccountEntity[];
+  selectedAccountIds: string[];
+  setSelectedAccountIds: (selectedAccountIds: string[]) => void;
+};
+
+function AccountSelectPopover({
+  accounts,
+  selectedAccountIds,
+  setSelectedAccountIds,
+}: AccountSelectPopoverProps) {
+  const { t } = useTranslation();
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const [isOpen, setIsOpen] = useState(false);
+
+  const selectedCount = selectedAccountIds.length;
+  const totalCount = accounts.length;
+  const isAllSelected = selectedCount === totalCount || selectedCount === 0;
+
+  return (
+    <>
+      <Button
+        ref={triggerRef}
+        variant={isAllSelected ? 'normal' : 'primary'}
+        onPress={() => setIsOpen(true)}
+      >
+        <SvgWallet style={{ width: 12, height: 12, marginRight: 5 }} />
+        {isAllSelected
+          ? t('All accounts ({{count}})', { count: totalCount })
+          : t('Accounts ({{selected}}/{{total}})', {
+              selected: selectedCount,
+              total: totalCount,
+            })}
+      </Button>
+
+      <Popover
+        triggerRef={triggerRef}
+        placement="bottom start"
+        isOpen={isOpen}
+        onOpenChange={() => setIsOpen(false)}
+        style={{ width: 320, maxHeight: 420, padding: 15 }}
+      >
+        <AccountSelector
+          accounts={accounts}
+          selectedAccountIds={selectedAccountIds}
+          setSelectedAccountIds={setSelectedAccountIds}
+        />
+      </Popover>
+    </>
+  );
+}
 
 export function ScheduledCashFlow() {
   const { id } = useParams();
@@ -273,6 +328,11 @@ function ScheduledCashFlowInner({ widget }: ScheduledCashFlowInnerProps) {
         onConditionsOpChange={onConditionsOpChange}
         inlineContent={
           <>
+            <AccountSelectPopover
+              accounts={accounts}
+              selectedAccountIds={selectedAccountIds}
+              setSelectedAccountIds={setSelectedAccountIds}
+            />
             <Select
               value={granularity}
               onChange={setGranularity}
@@ -337,14 +397,6 @@ function ScheduledCashFlowInner({ widget }: ScheduledCashFlowInnerProps) {
           overflowY: 'auto',
         }}
       >
-        <View style={{ maxWidth: 300, marginBottom: 20 }}>
-          <AccountSelector
-            accounts={accounts}
-            selectedAccountIds={selectedAccountIds}
-            setSelectedAccountIds={setSelectedAccountIds}
-          />
-        </View>
-
         {error ? (
           <Trans>Failed to load scheduled cash flow.</Trans>
         ) : (

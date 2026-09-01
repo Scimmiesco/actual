@@ -85,7 +85,7 @@ export function AccountSelector({
                   height={15}
                   style={{ marginRight: 5 }}
                 />
-                <Text>
+                <Text style={{ whiteSpace: 'nowrap' }}>
                   <Trans>Show unchecked</Trans>
                 </Text>
               </View>
@@ -101,14 +101,7 @@ export function AccountSelector({
                   height={15}
                   style={{ marginRight: 5 }}
                 />
-                <Text
-                  style={{
-                    maxWidth: 100,
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                  }}
-                >
+                <Text style={{ whiteSpace: 'nowrap' }}>
                   <Trans>Hide unchecked</Trans>
                 </Text>
               </View>
