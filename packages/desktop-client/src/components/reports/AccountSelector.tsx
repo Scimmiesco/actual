@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 
 import { Button } from '@actual-app/components/button';
@@ -15,6 +16,43 @@ import type { AccountEntity } from '@actual-app/core/types/models';
 import { Checkbox } from '#components/forms';
 
 import { GraphButton } from './GraphButton';
+
+type CheckboxRowProps = {
+  checked: boolean;
+  onToggle: () => void;
+  style?: CSSProperties;
+  children: ReactNode;
+  'data-testid'?: string;
+};
+
+function CheckboxRow({
+  checked,
+  onToggle,
+  style,
+  children,
+  'data-testid': testId,
+}: CheckboxRowProps) {
+  return (
+    <View
+      data-testid={testId}
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        cursor: 'pointer',
+        userSelect: 'none',
+        ...style,
+      }}
+      onClick={e => {
+        e.preventDefault();
+        e.stopPropagation();
+        onToggle();
+      }}
+    >
+      <Checkbox checked={checked} readOnly style={{ pointerEvents: 'none' }} />
+      {children}
+    </View>
+  );
+}
 
 type AccountSelectorProps = {
   accounts: AccountEntity[];
@@ -198,23 +236,15 @@ export function AccountSelector({
                 marginTop: 8,
               }}
             >
-              <label
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  cursor: 'pointer',
-                  userSelect: 'none',
-                  fontWeight: 'bold',
-                }}
+              <CheckboxRow
+                checked={onBudgetSelected}
+                onToggle={() =>
+                  toggleAccountGroup(onBudgetAccountIds, onBudgetSelected)
+                }
+                style={{ fontWeight: 'bold' }}
               >
-                <Checkbox
-                  checked={onBudgetSelected}
-                  onChange={() =>
-                    toggleAccountGroup(onBudgetAccountIds, onBudgetSelected)
-                  }
-                />
                 <Trans>On Budget</Trans>
-              </label>
+              </CheckboxRow>
             </li>
 
             {/* Checking Accounts Subgroup */}
@@ -230,26 +260,18 @@ export function AccountSelector({
                     marginLeft: 16,
                   }}
                 >
-                  <label
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      cursor: 'pointer',
-                      userSelect: 'none',
-                      fontWeight: 600,
-                    }}
+                  <CheckboxRow
+                    checked={checkingSelected}
+                    onToggle={() =>
+                      toggleAccountGroup(
+                        groupedAccounts.checking.map(a => a.id),
+                        checkingSelected,
+                      )
+                    }
+                    style={{ fontWeight: 600 }}
                   >
-                    <Checkbox
-                      checked={checkingSelected}
-                      onChange={() =>
-                        toggleAccountGroup(
-                          groupedAccounts.checking.map(a => a.id),
-                          checkingSelected,
-                        )
-                      }
-                    />
                     <Trans>Checking accounts</Trans>
-                  </label>
+                  </CheckboxRow>
                 </li>
                 {groupedAccounts.checking.map(account => {
                   const isChecked = selectedAccountMap.has(account.id);
@@ -264,33 +286,25 @@ export function AccountSelector({
                         marginLeft: 32,
                       }}
                     >
-                      <label
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          cursor: 'pointer',
-                          userSelect: 'none',
+                      <CheckboxRow
+                        checked={isChecked}
+                        onToggle={() => {
+                          if (isChecked) {
+                            setSelectedAccountIds(
+                              selectedAccountIds.filter(
+                                id => id !== account.id,
+                              ),
+                            );
+                          } else {
+                            setSelectedAccountIds([
+                              ...selectedAccountIds,
+                              account.id,
+                            ]);
+                          }
                         }}
                       >
-                        <Checkbox
-                          checked={isChecked}
-                          onChange={() => {
-                            if (isChecked) {
-                              setSelectedAccountIds(
-                                selectedAccountIds.filter(
-                                  id => id !== account.id,
-                                ),
-                              );
-                            } else {
-                              setSelectedAccountIds([
-                                ...selectedAccountIds,
-                                account.id,
-                              ]);
-                            }
-                          }}
-                        />
                         <Text>{account.name}</Text>
-                      </label>
+                      </CheckboxRow>
                     </li>
                   );
                 })}
@@ -310,26 +324,18 @@ export function AccountSelector({
                     marginLeft: 16,
                   }}
                 >
-                  <label
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      cursor: 'pointer',
-                      userSelect: 'none',
-                      fontWeight: 600,
-                    }}
+                  <CheckboxRow
+                    checked={creditSelected}
+                    onToggle={() =>
+                      toggleAccountGroup(
+                        groupedAccounts.credit.map(a => a.id),
+                        creditSelected,
+                      )
+                    }
+                    style={{ fontWeight: 600 }}
                   >
-                    <Checkbox
-                      checked={creditSelected}
-                      onChange={() =>
-                        toggleAccountGroup(
-                          groupedAccounts.credit.map(a => a.id),
-                          creditSelected,
-                        )
-                      }
-                    />
                     <Trans>Credit cards</Trans>
-                  </label>
+                  </CheckboxRow>
                 </li>
                 {groupedAccounts.credit.map(account => {
                   const isChecked = selectedAccountMap.has(account.id);
@@ -344,33 +350,25 @@ export function AccountSelector({
                         marginLeft: 32,
                       }}
                     >
-                      <label
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          cursor: 'pointer',
-                          userSelect: 'none',
+                      <CheckboxRow
+                        checked={isChecked}
+                        onToggle={() => {
+                          if (isChecked) {
+                            setSelectedAccountIds(
+                              selectedAccountIds.filter(
+                                id => id !== account.id,
+                              ),
+                            );
+                          } else {
+                            setSelectedAccountIds([
+                              ...selectedAccountIds,
+                              account.id,
+                            ]);
+                          }
                         }}
                       >
-                        <Checkbox
-                          checked={isChecked}
-                          onChange={() => {
-                            if (isChecked) {
-                              setSelectedAccountIds(
-                                selectedAccountIds.filter(
-                                  id => id !== account.id,
-                                ),
-                              );
-                            } else {
-                              setSelectedAccountIds([
-                                ...selectedAccountIds,
-                                account.id,
-                              ]);
-                            }
-                          }}
-                        />
                         <Text>{account.name}</Text>
-                      </label>
+                      </CheckboxRow>
                     </li>
                   );
                 })}
@@ -391,26 +389,18 @@ export function AccountSelector({
                 marginTop: 16,
               }}
             >
-              <label
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  cursor: 'pointer',
-                  userSelect: 'none',
-                  fontWeight: 'bold',
-                }}
+              <CheckboxRow
+                checked={offBudgetSelected}
+                onToggle={() =>
+                  toggleAccountGroup(
+                    groupedAccounts.offBudget.map(a => a.id),
+                    offBudgetSelected,
+                  )
+                }
+                style={{ fontWeight: 'bold' }}
               >
-                <Checkbox
-                  checked={offBudgetSelected}
-                  onChange={() =>
-                    toggleAccountGroup(
-                      groupedAccounts.offBudget.map(a => a.id),
-                      offBudgetSelected,
-                    )
-                  }
-                />
                 <Trans>Off Budget</Trans>
-              </label>
+              </CheckboxRow>
             </li>
             {groupedAccounts.offBudget.map(account => {
               const isChecked = selectedAccountMap.has(account.id);
@@ -424,31 +414,23 @@ export function AccountSelector({
                     marginLeft: 16,
                   }}
                 >
-                  <label
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      cursor: 'pointer',
-                      userSelect: 'none',
+                  <CheckboxRow
+                    checked={isChecked}
+                    onToggle={() => {
+                      if (isChecked) {
+                        setSelectedAccountIds(
+                          selectedAccountIds.filter(id => id !== account.id),
+                        );
+                      } else {
+                        setSelectedAccountIds([
+                          ...selectedAccountIds,
+                          account.id,
+                        ]);
+                      }
                     }}
                   >
-                    <Checkbox
-                      checked={isChecked}
-                      onChange={() => {
-                        if (isChecked) {
-                          setSelectedAccountIds(
-                            selectedAccountIds.filter(id => id !== account.id),
-                          );
-                        } else {
-                          setSelectedAccountIds([
-                            ...selectedAccountIds,
-                            account.id,
-                          ]);
-                        }
-                      }}
-                    />
                     <Text>{account.name}</Text>
-                  </label>
+                  </CheckboxRow>
                 </li>
               );
             })}
@@ -466,26 +448,18 @@ export function AccountSelector({
                 marginTop: 16,
               }}
             >
-              <label
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  cursor: 'pointer',
-                  userSelect: 'none',
-                  fontWeight: 'bold',
-                }}
+              <CheckboxRow
+                checked={closedSelected}
+                onToggle={() =>
+                  toggleAccountGroup(
+                    groupedAccounts.closed.map(a => a.id),
+                    closedSelected,
+                  )
+                }
+                style={{ fontWeight: 'bold' }}
               >
-                <Checkbox
-                  checked={closedSelected}
-                  onChange={() =>
-                    toggleAccountGroup(
-                      groupedAccounts.closed.map(a => a.id),
-                      closedSelected,
-                    )
-                  }
-                />
                 <Trans>Closed</Trans>
-              </label>
+              </CheckboxRow>
             </li>
             {groupedAccounts.closed.map(account => {
               const isChecked = selectedAccountMap.has(account.id);
@@ -499,31 +473,23 @@ export function AccountSelector({
                     marginLeft: 16,
                   }}
                 >
-                  <label
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      cursor: 'pointer',
-                      userSelect: 'none',
+                  <CheckboxRow
+                    checked={isChecked}
+                    onToggle={() => {
+                      if (isChecked) {
+                        setSelectedAccountIds(
+                          selectedAccountIds.filter(id => id !== account.id),
+                        );
+                      } else {
+                        setSelectedAccountIds([
+                          ...selectedAccountIds,
+                          account.id,
+                        ]);
+                      }
                     }}
                   >
-                    <Checkbox
-                      checked={isChecked}
-                      onChange={() => {
-                        if (isChecked) {
-                          setSelectedAccountIds(
-                            selectedAccountIds.filter(id => id !== account.id),
-                          );
-                        } else {
-                          setSelectedAccountIds([
-                            ...selectedAccountIds,
-                            account.id,
-                          ]);
-                        }
-                      }}
-                    />
                     <Text>{account.name}</Text>
-                  </label>
+                  </CheckboxRow>
                 </li>
               );
             })}
