@@ -22,7 +22,10 @@ export function accountFilter(
     | 'onbudget'
     | 'offbudget'
     | 'closed'
-    | 'uncategorized',
+    | 'uncategorized'
+    | 'creditcards'
+    | 'credit'
+    | 'checking',
   field = 'account',
 ) {
   if (accountId) {
@@ -38,6 +41,22 @@ export function accountFilter(
         $and: [
           { [`${field}.offbudget`]: true },
           { [`${field}.closed`]: false },
+        ],
+      };
+    } else if (accountId === 'creditcards' || accountId === 'credit') {
+      return {
+        $and: [
+          { [`${field}.offbudget`]: false },
+          { [`${field}.closed`]: false },
+          { [`${field}.type`]: 'credit' },
+        ],
+      };
+    } else if (accountId === 'checking') {
+      return {
+        $and: [
+          { [`${field}.offbudget`]: false },
+          { [`${field}.closed`]: false },
+          { [`${field}.type`]: { $ne: 'credit' } },
         ],
       };
     } else if (accountId === 'closed') {
@@ -68,7 +87,10 @@ export function transactions(
     | 'onbudget'
     | 'offbudget'
     | 'closed'
-    | 'uncategorized',
+    | 'uncategorized'
+    | 'creditcards'
+    | 'credit'
+    | 'checking',
 ) {
   let query = q('transactions').options({ splits: 'grouped' });
 

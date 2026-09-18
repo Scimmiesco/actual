@@ -15,6 +15,9 @@ export const SPECIAL_VIEW_IDS: string[] = [
   'offbudget',
   'uncategorized',
   'all-accounts',
+  'creditcards',
+  'credit',
+  'checking',
 ];
 
 /**

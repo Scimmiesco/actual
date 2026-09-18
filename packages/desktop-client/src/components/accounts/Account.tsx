@@ -216,6 +216,9 @@ type AccountInternalProps = {
     | 'onbudget'
     | 'offbudget'
     | 'uncategorized'
+    | 'creditcards'
+    | 'credit'
+    | 'checking'
     | undefined;
   filterConditions: RuleConditionEntity[];
   showBalances?: boolean;
@@ -1100,6 +1103,10 @@ class AccountInternal extends PureComponent<
         return t('On Budget Accounts');
       } else if (id === 'offbudget') {
         return t('Off Budget Accounts');
+      } else if (id === 'creditcards' || id === 'credit') {
+        return t('Credit Cards');
+      } else if (id === 'checking') {
+        return t('Checking Accounts');
       } else if (id === 'uncategorized') {
         return t('Uncategorized');
       } else if (!id) {
@@ -1855,6 +1862,9 @@ class AccountInternal extends PureComponent<
     const isNameEditable = accountId
       ? accountId !== 'onbudget' &&
         accountId !== 'offbudget' &&
+        accountId !== 'creditcards' &&
+        accountId !== 'credit' &&
+        accountId !== 'checking' &&
         accountId !== 'uncategorized'
       : false;
 
@@ -2003,6 +2013,9 @@ class AccountInternal extends PureComponent<
                     !!accountId &&
                     accountId !== 'offbudget' &&
                     accountId !== 'onbudget' &&
+                    accountId !== 'creditcards' &&
+                    accountId !== 'credit' &&
+                    accountId !== 'checking' &&
                     accountId !== 'uncategorized'
                   }
                   isAdding={this.state.isAdding}

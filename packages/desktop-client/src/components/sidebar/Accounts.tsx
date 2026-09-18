@@ -156,6 +156,7 @@ export function Accounts() {
           <>
             <Account
               name={t('Checking accounts')}
+              to="/accounts/checking"
               query={
                 isOnBudgetCleared
                   ? bindings.checkingAccountsTotalBalanceCleared()
@@ -167,6 +168,7 @@ export function Accounts() {
                 marginBottom: 5,
               }}
               titleAccount
+              isExactPathMatch
               balanceTestId="sidebar-checking-accounts-balance"
               action={
                 <Button
@@ -218,6 +220,7 @@ export function Accounts() {
           <>
             <Account
               name={t('Credit cards')}
+              to="/accounts/creditcards"
               query={
                 isCreditCardCleared
                   ? bindings.creditCardsTotalBalanceCleared()
@@ -229,6 +232,7 @@ export function Accounts() {
                 marginBottom: 5,
               }}
               titleAccount
+              isExactPathMatch
               balanceTestId="sidebar-credit-cards-balance"
               action={
                 <Button

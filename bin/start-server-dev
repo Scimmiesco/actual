@@ -1,0 +1,10 @@
+#!/bin/sh -e
+
+ROOT=`dirname $0`
+cd "$ROOT/.."
+
+export PATH="$PWD/node_modules/.bin:$PATH"
+export NODE_ENV=development
+export BROWSER_OPEN=localhost:5006
+
+./node_modules/.bin/npm-run-all --parallel 'start:server-monitor' 'start'

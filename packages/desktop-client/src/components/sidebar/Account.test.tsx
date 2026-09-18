@@ -101,6 +101,36 @@ describe('sidebar Account context menu', () => {
     expect(contextMenuItemNames()).toEqual([]);
   });
 
+  it('does not open on the Credit cards row', async () => {
+    await renderRow(
+      <Account
+        name="Credit cards"
+        to="/accounts/creditcards"
+        query={bindings.creditCardsTotalBalance()}
+      />,
+    );
+
+    fireEvent.contextMenu(screen.getByText('Credit cards'));
+
+    expect(store.getState().contextMenu.isOpen).toBe(false);
+    expect(contextMenuItemNames()).toEqual([]);
+  });
+
+  it('does not open on the Checking accounts row', async () => {
+    await renderRow(
+      <Account
+        name="Checking accounts"
+        to="/accounts/checking"
+        query={bindings.checkingAccountsTotalBalance()}
+      />,
+    );
+
+    fireEvent.contextMenu(screen.getByText('Checking accounts'));
+
+    expect(store.getState().contextMenu.isOpen).toBe(false);
+    expect(contextMenuItemNames()).toEqual([]);
+  });
+
   it('opens rename/close on an account row', async () => {
     const account = generateAccount('Bank of America');
 

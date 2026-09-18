@@ -47,6 +47,11 @@ export function AccountPage() {
           return t('On Budget Accounts');
         case 'offbudget':
           return t('Off Budget Accounts');
+        case 'creditcards':
+        case 'credit':
+          return t('Credit Cards');
+        case 'checking':
+          return t('Checking Accounts');
         case 'uncategorized':
           return t('Uncategorized');
         case 'closed':

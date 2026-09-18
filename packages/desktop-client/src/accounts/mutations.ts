@@ -632,6 +632,30 @@ export function useSyncAccountsMutation() {
           )
           .sort((a, b) => a.sort_order - b.sort_order)
           .map(({ id }) => id);
+      } else if (id === 'creditcards' || id === 'credit') {
+        accountIdsToSync = accounts
+          .filter(
+            ({ bank, closed, tombstone, offbudget, type }) =>
+              !!bank &&
+              !closed &&
+              !tombstone &&
+              offbudget === 0 &&
+              type === 'credit',
+          )
+          .sort((a, b) => a.sort_order - b.sort_order)
+          .map(({ id }) => id);
+      } else if (id === 'checking') {
+        accountIdsToSync = accounts
+          .filter(
+            ({ bank, closed, tombstone, offbudget, type }) =>
+              !!bank &&
+              !closed &&
+              !tombstone &&
+              offbudget === 0 &&
+              type !== 'credit',
+          )
+          .sort((a, b) => a.sort_order - b.sort_order)
+          .map(({ id }) => id);
       } else if (id) {
         accountIdsToSync = [id];
       } else {
